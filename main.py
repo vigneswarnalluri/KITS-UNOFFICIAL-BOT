@@ -297,10 +297,25 @@ async def main(bot):
             print(f"WARNING: Supabase not available, falling back to local databases: {supabase_error}")
             logging.warning("Supabase connection failed, using local databases: %s", supabase_error)
             
-            # Fallback to local databases
+            # Fallback to local databases with proper initialization
+            print("📋 Creating SQLite tables...")
             await tdatabase.create_all_tdatabase_tables()
+            print("✅ Created tdatabase tables")
+            
             await user_settings.create_user_settings_tables()
+            print("✅ Created user_settings tables")
+            
             await managers_handler.create_required_bot_manager_tables()
+            print("✅ Created managers tables")
+            
+            # Set default indexes for user settings
+            try:
+                await user_settings.set_default_attendance_indexes()
+                print("✅ Set default attendance indexes")
+            except Exception as idx_error:
+                print(f"⚠️ Warning: Could not set default indexes: {idx_error}")
+            
+            print("✅ SUCCESS: Local SQLite databases initialized!")
             
             # Try to create PostgreSQL tables, but don't fail if PostgreSQL is not available
             try:
