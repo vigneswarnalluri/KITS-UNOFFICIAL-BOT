@@ -21,11 +21,11 @@ COPY . .
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-# Set container deployment flag
+# Force Supabase environment variables
 ENV CONTAINER_DEPLOYMENT=true
-
-# Force Supabase REST API mode
 ENV FORCE_SUPABASE_REST=true
+ENV DISABLE_SQLITE_FALLBACK=true
+ENV SUPABASE_PRIORITY=high
 
-# Run the cloud-robust bot with Supabase priority
+# Run with Supabase priority
 CMD ["python", "main_cloud_robust.py"]
