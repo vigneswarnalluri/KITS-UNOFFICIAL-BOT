@@ -21,5 +21,8 @@ COPY . .
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-# Run the bot
-CMD ["python", "main.py"]
+# Set container deployment flag
+ENV CONTAINER_DEPLOYMENT=true
+
+# Run the container-optimized bot
+CMD ["python", "main_container.py"]
