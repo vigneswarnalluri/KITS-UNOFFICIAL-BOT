@@ -316,14 +316,27 @@ async def initialize_database():
     # Fallback to local SQLite databases
     print("⚠️ Falling back to local SQLite databases...")
     try:
+        # Create all SQLite tables in the correct order
+        print("📋 Creating SQLite tables...")
         await tdatabase.create_all_tdatabase_tables()
+        print("✅ Created tdatabase tables")
+        
         await user_settings.create_user_settings_tables()
+        print("✅ Created user_settings tables")
+        
         await managers_handler.create_required_bot_manager_tables()
+        print("✅ Created managers tables")
+        
+        # Set default indexes for user settings
+        await user_settings.set_default_attendance_indexes()
+        print("✅ Set default attendance indexes")
+        
         db_type = "sqlite"
         print("✅ SUCCESS: Local SQLite databases initialized!")
         return True
     except Exception as e:
         print(f"❌ SQLite fallback failed: {e}")
+        print(f"Error details: {str(e)}")
         return False
 
 async def main(bot):
