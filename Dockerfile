@@ -24,5 +24,8 @@ USER botuser
 # Set container deployment flag
 ENV CONTAINER_DEPLOYMENT=true
 
-# Run the cloud-robust bot with multiple connection methods
+# Force Supabase REST API mode
+ENV FORCE_SUPABASE_REST=true
+
+# Run the cloud-robust bot with Supabase priority
 CMD ["python", "main_cloud_robust.py"]

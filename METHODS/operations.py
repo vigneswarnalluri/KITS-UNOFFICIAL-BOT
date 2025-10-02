@@ -274,6 +274,30 @@ Example:/login 23JR1A43B6P 23JR1A43B6P"""
 
 async def get_indian_time():
     return datetime.now(timezone('Asia/Kolkata'))
+
+async def safe_fetch_ui_bool(chat_id):
+    """
+    Safely fetch UI boolean with automatic table creation fallback
+    """
+    try:
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode is None:
+            await user_settings.set_user_default_settings(chat_id)
+            ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        return ui_mode
+    except Exception as e:
+        print(f"⚠️ User settings table issue, creating tables: {e}")
+        try:
+            # Create user_settings tables if they don't exist
+            await user_settings.create_user_settings_tables()
+            await user_settings.set_user_default_settings(chat_id)
+            ui_mode = await user_settings.fetch_ui_bool(chat_id)
+            print("✅ User settings tables created and initialized successfully")
+            return ui_mode
+        except Exception as create_error:
+            print(f"❌ Failed to create user_settings tables: {create_error}")
+            # Return default UI mode (traditional UI = False)
+            return (0,)  # Default to modern UI
 async def get_random_greeting(bot,message):
     """
     Get a random greeting based on the time and day.
@@ -282,9 +306,9 @@ async def get_random_greeting(bot,message):
     indian_time = await get_indian_time()
     current_hour = indian_time.hour
     current_weekday = indian_time.weekday()
-    ui_mode = await user_settings.fetch_ui_bool(chat_id)
-    if ui_mode is None:
-        await user_settings.set_user_default_settings(chat_id)
+    
+    # Safe user_settings access with automatic table creation
+    ui_mode = await safe_fetch_ui_bool(chat_id)
     # List of greetings based on the time of day
     morning_greetings = ["Good morning!", "Hello, early bird!", "Rise and shine!", "Morning!"]
     afternoon_greetings = ["Good afternoon!", "Hello there!", "Afternoon vibes!", "Hey!"]

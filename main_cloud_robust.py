@@ -285,20 +285,8 @@ async def initialize_database():
     # Test connectivity methods
     connection_method = await test_supabase_connectivity()
     
-    if connection_method == "postgres":
-        # Use direct PostgreSQL connection
-        try:
-            await supabase_db.create_pool()
-            await supabase_db.create_all_tables()
-            db_handler = supabase_db
-            db_type = "supabase_postgres"
-            print("✅ SUCCESS: Supabase PostgreSQL connection established!")
-            return True
-        except Exception as e:
-            print(f"❌ Supabase PostgreSQL failed: {e}")
-    
-    elif connection_method == "http":
-        # Use Supabase REST API
+    if connection_method == "http":
+        # Prioritize REST API (more reliable on Railway)
         try:
             rest_client = SupabaseREST()
             # Test the REST connection
@@ -312,6 +300,19 @@ async def initialize_database():
                 print("❌ Supabase REST API test failed")
         except Exception as e:
             print(f"❌ Supabase REST API failed: {e}")
+    
+    elif connection_method == "postgres":
+        # Try direct PostgreSQL as secondary option
+        try:
+            await supabase_db.create_pool()
+            await supabase_db.create_all_tables()
+            db_handler = supabase_db
+            db_type = "supabase_postgres"
+            print("✅ SUCCESS: Supabase PostgreSQL connection established!")
+            return True
+        except Exception as e:
+            print(f"❌ Supabase PostgreSQL failed: {e}")
+    
     
     # Fallback to local SQLite databases
     print("⚠️ Falling back to local SQLite databases...")
