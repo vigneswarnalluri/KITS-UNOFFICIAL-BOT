@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: kits-bot
+    env: python
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python main_cloud_robust.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: CONTAINER_DEPLOYMENT
+        value: true
+      - key: FORCE_SUPABASE_REST
+        value: true
