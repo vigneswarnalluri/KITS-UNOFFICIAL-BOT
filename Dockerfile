@@ -24,5 +24,5 @@ USER botuser
 # Set container deployment flag
 ENV CONTAINER_DEPLOYMENT=true
 
-# Run the container-optimized bot
-CMD ["python", "main_container.py"]
+# Run the cloud-robust bot with multiple connection methods
+CMD ["python", "main_cloud_robust.py"]
