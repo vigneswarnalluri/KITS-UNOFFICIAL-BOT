@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  kits-bot:
+    build: .
+    environment:
+      - API_ID=${API_ID}
+      - API_HASH=${API_HASH}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DEVELOPER_CHAT_ID=${DEVELOPER_CHAT_ID}
+      - MAINTAINER_CHAT_ID=${MAINTAINER_CHAT_ID}
+      - POSTGRES_USER_ID=${POSTGRES_USER_ID}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER_ID}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
