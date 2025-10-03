@@ -175,7 +175,32 @@ async def validate_session(chat_id):
         return False
 
 async def perform_login(username, password):
-    """Perform actual KITS login with two-step ASP.NET process"""
+    """Perform KITS login with multiple fallback methods"""
+    try:
+        # Try multiple KITS URLs in case of system changes
+        kits_urls = [
+            "https://kitsgunturerp.com/BeesERP/Login.aspx",
+            "https://kitsgunturerp.com/Login.aspx", 
+            "https://kitsgunturerp.com/BeesERP/",
+            "https://kitsgunturerp.com/"
+        ]
+        
+        for login_url in kits_urls:
+            print(f"Trying KITS URL: {login_url}")
+            result = await try_kits_login(login_url, username, password)
+            if result:
+                return result
+            print(f"Failed with URL: {login_url}")
+        
+        print("All KITS URLs failed")
+        return None
+        
+    except Exception as e:
+        print(f"Login error: {e}")
+        return None
+
+async def try_kits_login(login_url, username, password):
+    """Try login with a specific KITS URL"""
     try:
         # Set up the necessary headers
         headers = {
@@ -187,7 +212,7 @@ async def perform_login(username, password):
             'Origin': 'https://kitsgunturerp.com',
             'DNT': '1',
             'Connection': 'keep-alive',
-            'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
+            'Referer': login_url,
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
@@ -197,27 +222,32 @@ async def perform_login(username, password):
 
         with requests.Session() as s:
             try:
-                # Step 1: Get the login page to extract hidden form fields
-                login_url = "https://kitsgunturerp.com/BeesERP/Login.aspx"
+                # Step 1: Get the login page
+                print(f"Step 1: Getting login page from {login_url}")
                 response = s.get(login_url, headers=headers, timeout=30)
                 
-                # Check if we got a successful response
                 if response.status_code != 200:
-                    print(f"Failed to load login page. Status code: {response.status_code}")
+                    print(f"Failed to load login page. Status: {response.status_code}")
                     return None
+                
+                print(f"Login page loaded successfully, content length: {len(response.text)}")
                 
                 # Parse the page to extract hidden fields
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Extract hidden fields that need to be submitted with the login
+                # Extract hidden fields
                 viewstate = soup.find('input', {'name': '__VIEWSTATE'})
                 viewstategenerator = soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
                 eventvalidation = soup.find('input', {'name': '__EVENTVALIDATION'})
                 
-                # Debug: Print extracted fields
-                print(f"Step 1 - VIEWSTATE: {viewstate.get('value', '')[:50] if viewstate else 'None'}")
-                print(f"Step 1 - VIEWSTATEGENERATOR: {viewstategenerator.get('value', '') if viewstategenerator else 'None'}")
-                print(f"Step 1 - EVENTVALIDATION: {eventvalidation.get('value', '')[:50] if eventvalidation else 'None'}")
+                print(f"VIEWSTATE found: {viewstate is not None}")
+                print(f"VIEWSTATEGENERATOR found: {viewstategenerator is not None}")
+                print(f"EVENTVALIDATION found: {eventvalidation is not None}")
+                
+                # Check if this is a valid login page
+                if not viewstate or not eventvalidation:
+                    print("Missing required form fields - not a valid login page")
+                    return None
                 
                 # Prepare the username data
                 data = {
@@ -228,27 +258,25 @@ async def perform_login(username, password):
                     'btnNext': 'Next'
                 }
                 
+                print("Step 2: Submitting username")
                 # Submit the first step (username)
                 response = s.post(login_url, headers=headers, data=data, timeout=15)
                 
-                # Check if the first step was successful
                 if response.status_code != 200:
-                    print(f"Failed to submit username. Status code: {response.status_code}")
+                    print(f"Failed to submit username. Status: {response.status_code}")
                     return None
                 
-                # Debug: Check response content
-                print(f"Username submission response length: {len(response.text)}")
+                print(f"Username submitted successfully, response length: {len(response.text)}")
                 
-                # Step 2: Parse the response to get the new hidden fields for password submission
+                # Step 3: Parse the response to get the new hidden fields for password submission
                 soup = BeautifulSoup(response.text, 'html.parser')
                 viewstate = soup.find('input', {'name': '__VIEWSTATE'})
                 viewstategenerator = soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
                 eventvalidation = soup.find('input', {'name': '__EVENTVALIDATION'})
                 
-                # Debug: Print extracted fields for password step
-                print(f"Step 2 - VIEWSTATE: {viewstate.get('value', '')[:50] if viewstate else 'None'}")
-                print(f"Step 2 - VIEWSTATEGENERATOR: {viewstategenerator.get('value', '') if viewstategenerator else 'None'}")
-                print(f"Step 2 - EVENTVALIDATION: {eventvalidation.get('value', '')[:50] if eventvalidation else 'None'}")
+                print(f"Step 3 - VIEWSTATE found: {viewstate is not None}")
+                print(f"Step 3 - VIEWSTATEGENERATOR found: {viewstategenerator is not None}")
+                print(f"Step 3 - EVENTVALIDATION found: {eventvalidation is not None}")
                 
                 # Check if we have the necessary fields for password submission
                 if not viewstate or not eventvalidation:
@@ -264,33 +292,45 @@ async def perform_login(username, password):
                     'btnSubmit': 'Login'
                 }
                 
+                print("Step 4: Submitting password")
                 # Submit the login form with password
                 login_response = s.post(login_url, headers=headers, data=data, timeout=15)
                 
+                print(f"Password submitted, status: {login_response.status_code}")
+                print(f"Final URL: {login_response.url}")
+                
                 # Check if login was successful
                 if login_response.status_code == 200:
-                    # Check if we're redirected to the main student page
-                    if ("StudentLogin/MainStud.aspx" in login_response.url or 
-                        "MainStud.aspx" in login_response.text or
-                        "Welcome" in login_response.text):
-                        
+                    # Check multiple success indicators
+                    success_indicators = [
+                        "StudentLogin/MainStud.aspx" in login_response.url,
+                        "MainStud.aspx" in login_response.text,
+                        "Welcome" in login_response.text,
+                        "Dashboard" in login_response.text,
+                        "Student" in login_response.text,
+                        "Attendance" in login_response.text
+                    ]
+                    
+                    if any(success_indicators):
+                        print("Login successful! Success indicators found.")
                         # Extract session data
                         session_data = {
                             'cookies': dict(s.cookies),
                             'headers': headers,
-                            'login_time': time.time()
+                            'login_time': time.time(),
+                            'login_url': login_url
                         }
-                        print("Login successful!")
                         return session_data
                     else:
-                        print("Login failed - not redirected to main page")
+                        print("Login failed - no success indicators found")
+                        print(f"Response content preview: {login_response.text[:500]}")
                         return None
                 else:
                     print(f"Login failed with status code: {login_response.status_code}")
                     return None
                     
             except Exception as e:
-                print(f"Login error: {e}")
+                print(f"Login error for URL {login_url}: {e}")
                 return None
                 
     except Exception as e:
@@ -427,7 +467,11 @@ async def login_user(bot, message):
             
             await bot.send_message(chat_id, f"✅ Login successful! Welcome {username}", reply_markup=get_main_menu_buttons())
         else:
-            await bot.send_message(chat_id, "❌ Login failed. Please check your credentials and try again.")
+            await bot.send_message(chat_id, "❌ Login failed. This could be due to:\n\n"
+                                          "• KITS ERP system is temporarily down\n"
+                                          "• Network connectivity issues\n"
+                                          "• Incorrect credentials\n\n"
+                                          "Please try again later or contact support if the issue persists.")
             
     except Exception as e:
         print(f"Error in login: {e}")
