@@ -877,40 +877,42 @@ async def get_timetable(bot, message):
         
         await bot.send_message(chat_id, "🔄 Fetching timetable data...")
         
-        # Get timetable data from KITS
-        with requests.Session() as s:
-            cookies = session_data['cookies']
-            headers = session_data.get('headers', {})
-            s.cookies.update(cookies)
-            
-            # Get timetable page
-            timetable_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx"
-            response = s.get(timetable_url, headers=headers, timeout=15)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
+        # Try to get timetable data from KITS
+        try:
+            # Get timetable data from KITS
+            with requests.Session() as s:
+                cookies = session_data['cookies']
+                headers = session_data.get('headers', {})
+                s.cookies.update(cookies)
                 
-                # Extract timetable data
-                timetable_text = "📅 **Timetable**\n\n"
+                # Get timetable page
+                timetable_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx"
+                response = s.get(timetable_url, headers=headers, timeout=15)
                 
-                # Look for timetable table
-                table = soup.find('table', {'id': 'gvTimetable'})
-                if table:
-                    rows = table.find_all('tr')
-                    for row in rows[1:]:  # Skip header
-                        cells = row.find_all(['td', 'th'])
-                        if len(cells) >= 4:
-                            day = cells[0].get_text(strip=True)
-                            time_slot = cells[1].get_text(strip=True)
-                            subject = cells[2].get_text(strip=True)
-                            room = cells[3].get_text(strip=True)
-                            timetable_text += f"**{day} {time_slot}**: {subject} ({room})\n"
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Extract timetable data
+                    timetable_text = "📅 **Timetable**\n\n"
+                    
+                    # Look for timetable table
+                    table = soup.find('table', {'id': 'gvTimetable'})
+                    if table:
+                        rows = table.find_all('tr')
+                        for row in rows[1:]:  # Skip header
+                            cells = row.find_all(['td', 'th'])
+                            if len(cells) >= 4:
+                                day = cells[0].get_text(strip=True)
+                                time_slot = cells[1].get_text(strip=True)
+                                subject = cells[2].get_text(strip=True)
+                                room = cells[3].get_text(strip=True)
+                                timetable_text += f"**{day} {time_slot}**: {subject} ({room})\n"
+                    else:
+                        timetable_text += "No timetable data found"
+                    
+                    await bot.send_message(chat_id, timetable_text, reply_markup=get_main_menu_buttons())
                 else:
-                    timetable_text += "No timetable data found"
-                
-                await bot.send_message(chat_id, timetable_text, reply_markup=get_main_menu_buttons())
-            else:
-                await bot.send_message(chat_id, "❌ Failed to fetch timetable data. Please try again.")
+                    await bot.send_message(chat_id, "❌ Failed to fetch timetable data. Please try again.")
         except Exception as timetable_error:
             print(f"KITS timetable fetch failed: {timetable_error}")
             await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
