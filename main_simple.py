@@ -106,8 +106,17 @@ async def main():
         
         # Keep the bot running
         print("🔄 Bot is running...")
-        while True:
-            await asyncio.sleep(1)
+        print("✅ Bot is ready to receive commands!")
+        
+        # Keep the bot running with proper event handling
+        try:
+            while True:
+                await asyncio.sleep(0.1)  # Short sleep to allow event processing
+        except KeyboardInterrupt:
+            print("🛑 Bot stopped by user")
+        except Exception as e:
+            print(f"❌ Bot runtime error: {e}")
+            logging.error(f"Bot runtime error: {e}")
             
     except Exception as e:
         print(f"❌ Fatal error: {e}")
