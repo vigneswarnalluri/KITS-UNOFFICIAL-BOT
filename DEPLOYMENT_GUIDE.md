@@ -4,11 +4,29 @@ This guide will help you deploy your Telegram bot to run 24/7 for free using var
 
 ## 🎯 Best Free 24/7 Hosting Options
 
-### 1. 🟢 **Render.com** (RECOMMENDED)
-- **Free Tier**: 750 hours/month (enough for 24/7)
-- **Limitations**: Sleeps after 15 minutes of inactivity
-- **Solution**: Use keep_alive.py script
+### 1. 🟢 **Railway.app** (RECOMMENDED)
+- **Free Tier**: $5 credit monthly (usually enough for bots)
+- **Background Workers**: ✅ Supported
+- **Setup Time**: 3 minutes
+- **Limitations**: Limited resources, but works for bots
+
+### 2. 🔵 **Fly.io** (EXCELLENT)
+- **Free Tier**: 3 shared-cpu-1x VMs
+- **Background Workers**: ✅ Supported
 - **Setup Time**: 5 minutes
+- **Limitations**: 160GB-hours/month
+
+### 3. 🟡 **Replit** (EASY)
+- **Free Tier**: Always-on repls
+- **Background Workers**: ✅ Supported
+- **Setup Time**: 2 minutes
+- **Limitations**: CPU limits, but works for bots
+
+### 4. ❌ **Render.com** (NOT RECOMMENDED)
+- **Free Tier**: Web Services only (no Background Workers)
+- **Background Workers**: ❌ Requires $7/month paid plan
+- **Setup Time**: N/A
+- **Limitations**: Not suitable for free bot hosting
 
 ### 2. 🟡 **Railway.app** (Alternative)
 - **Free Tier**: $5 credit monthly
