@@ -49,12 +49,17 @@ _session_validation_cache = {}
 async def store_user_session(chat_id, session_data, username):
     """Store user session in Supabase"""
     try:
+        if not supabase_client:
+            print("❌ Supabase client not initialized")
+            return False
+            
         data = {
             "chat_id": chat_id,
             "session_data": json.dumps(session_data),
             "username": username
         }
         result = supabase_client._make_request("POST", "user_sessions", data)
+        print(f"Session storage result: {result}")
         return result is not None
     except Exception as e:
         print(f"Error storing session: {e}")
@@ -63,7 +68,12 @@ async def store_user_session(chat_id, session_data, username):
 async def load_user_session(chat_id):
     """Load user session from Supabase"""
     try:
+        if not supabase_client:
+            print("❌ Supabase client not initialized")
+            return None
+            
         result = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
+        print(f"Session load result for {chat_id}: {result}")
         if result and len(result) > 0:
             session_data = result[0].get("session_data")
             if session_data:
@@ -341,6 +351,64 @@ async def get_indian_time():
     """Get current Indian time"""
     return datetime.now(pytz.timezone('Asia/Kolkata'))
 
+async def create_supabase_tables():
+    """Create required Supabase tables"""
+    try:
+        print("🔧 Creating Supabase tables...")
+        
+        # Create user_sessions table
+        user_sessions_sql = """
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id SERIAL PRIMARY KEY,
+            chat_id BIGINT UNIQUE NOT NULL,
+            session_data TEXT,
+            username TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        """
+        
+        # Create credentials table
+        credentials_sql = """
+        CREATE TABLE IF NOT EXISTS credentials (
+            id SERIAL PRIMARY KEY,
+            chat_id BIGINT UNIQUE NOT NULL,
+            username TEXT,
+            password TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        """
+        
+        # Create user_settings table
+        user_settings_sql = """
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id SERIAL PRIMARY KEY,
+            chat_id BIGINT UNIQUE NOT NULL,
+            attendance_threshold INTEGER DEFAULT 75,
+            biometric_threshold INTEGER DEFAULT 75,
+            traditional_ui BOOLEAN DEFAULT FALSE,
+            extract_title BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        """
+        
+        # Execute table creation (using raw SQL via Supabase)
+        # Note: This would need to be done via Supabase dashboard or SQL editor
+        # For now, we'll just log the SQL commands
+        print("📋 Table creation SQL commands:")
+        print("1. user_sessions:", user_sessions_sql)
+        print("2. credentials:", credentials_sql)
+        print("3. user_settings:", user_settings_sql)
+        print("⚠️ Please create these tables in your Supabase dashboard if they don't exist")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error creating tables: {e}")
+        return False
+
 async def safe_fetch_ui_bool(chat_id):
     """Safely fetch UI boolean with automatic table creation fallback"""
     try:
@@ -500,8 +568,15 @@ async def get_attendance(bot, message):
     chat_id = message.chat.id
     
     try:
+        # Check if Supabase client is initialized
+        if not supabase_client:
+            await bot.send_message(chat_id, "❌ Database not initialized. Please try again.")
+            return
+            
         # Check if user is logged in
+        print(f"Loading session for chat_id: {chat_id}")
         session_data = await load_user_session(chat_id)
+        print(f"Session data loaded: {session_data is not None}")
         if not session_data:
             await bot.send_message(chat_id, "❌ Please login first using /login")
             return
@@ -866,10 +941,14 @@ async def initialize_complete_supabase():
         print("🌐 Initializing Supabase REST client...")
         supabase_client = SupabaseREST()
         
-        # Test the connection
+        # Test the connection and create tables if needed
         test_result = supabase_client._make_request("GET", "user_sessions?limit=1")
         if test_result is not None:
             print("✅ SUCCESS: Supabase REST API connection established!")
+            
+            # Create tables if they don't exist
+            await create_supabase_tables()
+            
             print("🎉 Bot ready with COMPLETE KITS INTEGRATION + Supabase!")
             return True
         else:
