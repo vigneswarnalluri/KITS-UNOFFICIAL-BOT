@@ -129,8 +129,9 @@ if __name__ == "__main__":
         print("✅ Bot started successfully!")
         print("🔄 Bot is running...")
         
-        # Keep the bot running
-        bot.idle()
+        # Keep the bot running (Railway-optimized)
+        while True:
+            await asyncio.sleep(1)
         
     except KeyboardInterrupt:
         print("🛑 Bot stopped by user")
