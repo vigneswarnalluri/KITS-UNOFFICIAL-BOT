@@ -1,9 +1,9 @@
 from pyrogram import Client, filters,errors
 import asyncio,os
-from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
+from DATABASE import tdatabase,user_settings,managers_handler
 from DATABASE.supabase_database import supabase_db
-from METHODS import labs_handler, operations,manager_operations,lab_operations,pdf_compressor
-from Buttons import buttons,manager_buttons
+from METHODS import operations
+from Buttons import buttons
 from pyrogram.errors import FloodWait
 import time,logging
 from load_env import load_environment
@@ -146,14 +146,6 @@ async def main(bot):
             await user_settings.create_user_settings_tables()
             await managers_handler.create_required_bot_manager_tables()
             print("SUCCESS: Local SQLite databases initialized!")
-        
-        # Initialize PostgreSQL database
-        try:
-            await pgdatabase.create_pool()
-            print("PostgreSQL connection successful")
-        except Exception as pg_error:
-            print(f"PostgreSQL connection failed: {pg_error}")
-            logging.warning("PostgreSQL connection failed: %s", pg_error)
 
     except Exception as e:
         print(f"Database initialization error: {e}")
@@ -173,7 +165,7 @@ if __name__ == "__main__":
         print("Please set these environment variables and try again.")
         exit(1)
     
-    print("🤖 Starting KITS Bot (Railway Working Version)...")
+    print("🤖 Starting KITS Bot (Railway Minimal Version)...")
     print(f"📱 Bot Token: {BOT_TOKEN[:10]}...")
     print(f"🔑 API ID: {API_ID}")
     
