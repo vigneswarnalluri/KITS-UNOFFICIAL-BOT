@@ -400,6 +400,73 @@ async def get_indian_time():
     """Get current Indian time"""
     return datetime.now(pytz.timezone('Asia/Kolkata'))
 
+async def show_sample_attendance(chat_id):
+    """Show sample attendance data when KITS is unavailable"""
+    try:
+        sample_attendance = """📊 **Attendance Report** (Sample Data)
+
+**Mathematics**: 18/20 (90%)
+**Physics**: 15/18 (83%)
+**Chemistry**: 17/19 (89%)
+**English**: 16/18 (89%)
+**Computer Science**: 19/20 (95%)
+
+📈 **Overall Attendance**: 85/95 (89.5%)
+
+⚠️ *Note: This is sample data. KITS system is currently unavailable.*"""
+        
+        await bot.send_message(chat_id, sample_attendance, reply_markup=get_main_menu_buttons())
+    except Exception as e:
+        print(f"Error showing sample attendance: {e}")
+        await bot.send_message(chat_id, "❌ Error displaying attendance data.")
+
+async def show_sample_marks(chat_id):
+    """Show sample marks data when KITS is unavailable"""
+    try:
+        sample_marks = """📈 **Marks Report** (Sample Data)
+
+**Mathematics**: 85/100 (A+)
+**Physics**: 78/100 (A)
+**Chemistry**: 82/100 (A+)
+**English**: 75/100 (B+)
+**Computer Science**: 90/100 (A+)
+
+📊 **Overall GPA**: 8.2/10
+
+⚠️ *Note: This is sample data. KITS system is currently unavailable.*"""
+        
+        await bot.send_message(chat_id, sample_marks, reply_markup=get_main_menu_buttons())
+    except Exception as e:
+        print(f"Error showing sample marks: {e}")
+        await bot.send_message(chat_id, "❌ Error displaying marks data.")
+
+async def show_sample_timetable(chat_id):
+    """Show sample timetable when KITS is unavailable"""
+    try:
+        sample_timetable = """📅 **Timetable** (Sample Data)
+
+**Monday**:
+• 9:00 AM - Mathematics
+• 10:30 AM - Physics
+• 12:00 PM - Chemistry
+
+**Tuesday**:
+• 9:00 AM - English
+• 10:30 AM - Computer Science
+• 12:00 PM - Mathematics
+
+**Wednesday**:
+• 9:00 AM - Physics
+• 10:30 AM - Chemistry
+• 12:00 PM - English
+
+⚠️ *Note: This is sample data. KITS system is currently unavailable.*"""
+        
+        await bot.send_message(chat_id, sample_timetable, reply_markup=get_main_menu_buttons())
+    except Exception as e:
+        print(f"Error showing sample timetable: {e}")
+        await bot.send_message(chat_id, "❌ Error displaying timetable data.")
+
 async def create_supabase_tables():
     """Create required Supabase tables"""
     try:
@@ -667,7 +734,9 @@ async def get_attendance(bot, message):
                     continue
             
             if not response:
-                await bot.send_message(chat_id, "❌ Could not access attendance page. Please try again later.")
+                # KITS system might be down - provide fallback data
+                await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                await show_sample_attendance(chat_id)
                 return
             
             print(f"Attendance response status: {response.status_code}")
@@ -745,8 +814,10 @@ async def get_marks(bot, message):
         
         await bot.send_message(chat_id, "🔄 Fetching marks data...")
         
-        # Get marks data from KITS
-        with requests.Session() as s:
+        # Try to get marks data from KITS
+        try:
+            # Get marks data from KITS
+            with requests.Session() as s:
             cookies = session_data['cookies']
             headers = session_data.get('headers', {})
             s.cookies.update(cookies)
@@ -779,6 +850,10 @@ async def get_marks(bot, message):
                 await bot.send_message(chat_id, marks_text, reply_markup=get_main_menu_buttons())
             else:
                 await bot.send_message(chat_id, "❌ Failed to fetch marks data. Please try again.")
+        except Exception as marks_error:
+            print(f"KITS marks fetch failed: {marks_error}")
+            await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+            await show_sample_marks(chat_id)
             
     except Exception as e:
         print(f"Error in marks: {e}")
@@ -836,6 +911,10 @@ async def get_timetable(bot, message):
                 await bot.send_message(chat_id, timetable_text, reply_markup=get_main_menu_buttons())
             else:
                 await bot.send_message(chat_id, "❌ Failed to fetch timetable data. Please try again.")
+        except Exception as timetable_error:
+            print(f"KITS timetable fetch failed: {timetable_error}")
+            await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+            await show_sample_timetable(chat_id)
             
     except Exception as e:
         print(f"Error in timetable: {e}")
