@@ -53,9 +53,10 @@ async def store_user_session(chat_id, session_data, username):
             print("❌ Supabase client not initialized")
             return False
         
-        print(f"Storing session for chat_id: {chat_id}")
-        print(f"Session data keys: {list(session_data.keys()) if session_data else 'None'}")
-        print(f"Session cookies: {session_data.get('cookies', {}) if session_data else 'None'}")
+        print(f"💾 STORING SESSION for chat_id: {chat_id}")
+        print(f"📊 Session data keys: {list(session_data.keys()) if session_data else 'None'}")
+        print(f"🍪 Session cookies: {list(session_data.get('cookies', {}).keys()) if session_data else 'None'}")
+        print(f"⏰ Session login_time: {session_data.get('login_time', 'NOT SET') if session_data else 'None'}")
         
         # Ensure session_data has required fields
         if not session_data or 'cookies' not in session_data:
@@ -107,9 +108,9 @@ async def load_user_session(chat_id):
             print("❌ Supabase client not initialized")
             return None
         
-        print(f"Loading session for chat_id: {chat_id}")
+        print(f"📥 LOADING SESSION for chat_id: {chat_id}")
         result = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
-        print(f"Session load result for {chat_id}: {result}")
+        print(f"📊 Session load result for {chat_id}: {result}")
         
         if result and len(result) > 0:
             session_data = result[0].get("session_data")
@@ -215,9 +216,20 @@ async def load_user_settings(chat_id):
 async def validate_session(chat_id):
     """Validate if the user's session is still active - using original bot method"""
     try:
+        print(f"🔍 VALIDATING SESSION for chat_id: {chat_id}")
         session_data = await load_user_session(chat_id)
-        if not session_data or 'cookies' not in session_data:
+        print(f"📊 Session data exists: {session_data is not None}")
+        
+        if not session_data:
+            print("❌ No session data found")
             return False
+            
+        if 'cookies' not in session_data:
+            print("❌ No cookies in session data")
+            return False
+        
+        print(f"🍪 Session has cookies: {len(session_data.get('cookies', {}))}")
+        print(f"⏰ Session login time: {session_data.get('login_time', 'NOT SET')}")
         
         # Use cached validation if recent (within 2 minutes)
         cache_key = f"{chat_id}_validation"
@@ -225,8 +237,10 @@ async def validate_session(chat_id):
         if cache_key in _session_validation_cache:
             cached_time, is_valid = _session_validation_cache[cache_key]
             if current_time - cached_time < 120:  # 2 minutes cache
+                print(f"📋 Using cached validation result: {is_valid}")
                 return is_valid
         
+        print("🌐 Testing session with KITS request...")
         # Test session with a lightweight request (exact same as original)
         with requests.Session() as s:
             cookies = session_data['cookies']
@@ -243,22 +257,35 @@ async def validate_session(chat_id):
             
             # Try a lightweight endpoint first
             test_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+            print(f"🔗 Testing URL: {test_url}")
             response = s.get(test_url, headers=headers, timeout=15, allow_redirects=True)
             
+            print(f"📡 Response status: {response.status_code}")
+            print(f"🔗 Final URL: {response.url}")
+            print(f"📄 Response length: {len(response.text)}")
+            
             # Check if session is valid (exact same logic as original)
-            is_valid = (
-                "Login.aspx" not in getattr(response, "url", "") and 
-                "Login.aspx" not in response.text and
-                "txtUserName" not in response.text and
-                "btnNext" not in response.text
-            )
+            has_login_in_url = "Login.aspx" in getattr(response, "url", "")
+            has_login_in_text = "Login.aspx" in response.text
+            has_username_field = "txtUserName" in response.text
+            has_next_button = "btnNext" in response.text
+            
+            print(f"🔍 Validation checks:")
+            print(f"  - Login in URL: {has_login_in_url}")
+            print(f"  - Login in text: {has_login_in_text}")
+            print(f"  - Username field: {has_username_field}")
+            print(f"  - Next button: {has_next_button}")
+            
+            is_valid = not (has_login_in_url or has_login_in_text or has_username_field or has_next_button)
+            
+            print(f"✅ Session validation result: {is_valid}")
             
             # Cache the result
             _session_validation_cache[cache_key] = (current_time, is_valid)
             return is_valid
             
     except Exception as e:
-        print(f"Session validation error for chat_id {chat_id}: {e}")
+        print(f"❌ Session validation error for chat_id {chat_id}: {e}")
         return False
 
 async def perform_login(username, password):
