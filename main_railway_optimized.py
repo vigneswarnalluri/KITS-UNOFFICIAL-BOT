@@ -117,21 +117,27 @@ async def ping_command(client, message):
     except Exception as e:
         print(f"❌ Error in ping command: {e}")
 
-# Start the bot
-if __name__ == "__main__":
+async def main():
+    """Main async function to run the bot"""
     print("🚀 Starting Railway-optimized IARE Bot...")
     print("✅ Bot is ready to receive commands!")
     print("🔄 Bot will run 24/7 with Railway optimization!")
     
     try:
         # Start the bot
-        bot.start()
+        await bot.start()
         print("✅ Bot started successfully!")
         print("🔄 Bot is running...")
         
         # Keep the bot running (Railway-optimized)
-        while True:
-            await asyncio.sleep(1)
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("🛑 Bot stopped by user")
+        except Exception as e:
+            print(f"❌ Bot error: {e}")
+            logging.error(f"Bot error: {e}")
         
     except KeyboardInterrupt:
         print("🛑 Bot stopped by user")
@@ -140,7 +146,11 @@ if __name__ == "__main__":
         logging.error(f"Bot error: {e}")
     finally:
         try:
-            bot.stop()
+            await bot.stop()
             print("🛑 Bot stopped")
         except:
             pass
+
+# Start the bot
+if __name__ == "__main__":
+    asyncio.run(main())
