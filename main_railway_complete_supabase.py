@@ -713,11 +713,36 @@ async def get_attendance(bot, message):
             print(f"Session cookies: {cookies}")
             print(f"Session headers: {headers}")
             
-            # Try multiple attendance URLs
+            # Use the original KITS scraping method - MainStud.aspx dashboard with postback
+            dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+            print(f"Accessing KITS dashboard: {dashboard_url}")
+            dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
+            
+            if dashboard_response.status_code != 200:
+                print(f"Dashboard access failed: {dashboard_response.status_code}")
+                await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                await show_sample_attendance(chat_id)
+                return
+            
+            # Check if we're redirected to login (session expired)
+            if "Login.aspx" in dashboard_response.url or "txtUserName" in dashboard_response.text:
+                print("Session expired - redirected to login")
+                await bot.send_message(chat_id, "❌ Session expired. Please login again.", reply_markup=get_main_menu_buttons())
+                return
+            
+            # Parse dashboard to get form fields for postback
+            dashboard_soup = BeautifulSoup(dashboard_response.text, 'html.parser')
+            viewstate = dashboard_soup.find('input', {'name': '__VIEWSTATE'})
+            viewstategenerator = dashboard_soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
+            eventvalidation = dashboard_soup.find('input', {'name': '__EVENTVALIDATION'})
+            
+            print(f"Dashboard form fields found - VIEWSTATE: {viewstate is not None}, EVENTVALIDATION: {eventvalidation is not None}")
+            
+            # Try multiple attendance URLs with proper headers
             attendance_urls = [
+                "https://kitsgunturerp.com/BeesERP/StudentAttendance.aspx",
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudentAttendance.aspx", 
                 "https://kitsgunturerp.com/BeesERP/StudentLogin/Attendance.aspx",
-                "https://kitsgunturerp.com/BeesERP/StudentLogin/AttendanceReport.aspx",
-                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudentAttendance.aspx",
                 "https://kitsgunturerp.com/BeesERP/Attendance.aspx"
             ]
             
@@ -725,8 +750,8 @@ async def get_attendance(bot, message):
             for attendance_url in attendance_urls:
                 print(f"Trying attendance URL: {attendance_url}")
                 try:
-                    response = s.get(attendance_url, headers=headers, timeout=15)
-                    if response.status_code == 200 and "attendance" in response.text.lower():
+                    response = s.get(attendance_url, headers=headers, allow_redirects=True, timeout=30)
+                    if response.status_code == 200 and ("<table" in response.text or "%" in response.text):
                         print(f"Success with URL: {attendance_url}")
                         break
                 except Exception as e:
@@ -734,7 +759,7 @@ async def get_attendance(bot, message):
                     continue
             
             if not response:
-                # KITS system might be down - provide fallback data
+                print("All attendance URLs failed")
                 await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
                 await show_sample_attendance(chat_id)
                 return
@@ -822,9 +847,40 @@ async def get_marks(bot, message):
                 headers = session_data.get('headers', {})
                 s.cookies.update(cookies)
                 
-                # Get marks page
-                marks_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx"
-                response = s.get(marks_url, headers=headers, timeout=15)
+                # Use proper KITS scraping method
+                dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+                dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
+                
+                if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
+                    print("Dashboard access failed for marks")
+                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                    await show_sample_marks(chat_id)
+                    return
+                
+                # Try multiple marks URLs
+                marks_urls = [
+                    "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx",
+                    "https://kitsgunturerp.com/BeesERP/StudentMarks.aspx",
+                    "https://kitsgunturerp.com/BeesERP/Marks.aspx"
+                ]
+                
+                response = None
+                for marks_url in marks_urls:
+                    print(f"Trying marks URL: {marks_url}")
+                    try:
+                        response = s.get(marks_url, headers=headers, allow_redirects=True, timeout=30)
+                        if response.status_code == 200 and ("<table" in response.text or "marks" in response.text.lower()):
+                            print(f"Success with marks URL: {marks_url}")
+                            break
+                    except Exception as e:
+                        print(f"Failed with marks URL {marks_url}: {e}")
+                        continue
+                
+                if not response:
+                    print("All marks URLs failed")
+                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                    await show_sample_marks(chat_id)
+                    return
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
@@ -885,9 +941,40 @@ async def get_timetable(bot, message):
                 headers = session_data.get('headers', {})
                 s.cookies.update(cookies)
                 
-                # Get timetable page
-                timetable_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx"
-                response = s.get(timetable_url, headers=headers, timeout=15)
+                # Use proper KITS scraping method
+                dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+                dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
+                
+                if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
+                    print("Dashboard access failed for timetable")
+                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                    await show_sample_timetable(chat_id)
+                    return
+                
+                # Try multiple timetable URLs
+                timetable_urls = [
+                    "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx",
+                    "https://kitsgunturerp.com/BeesERP/StudentTimetable.aspx",
+                    "https://kitsgunturerp.com/BeesERP/Timetable.aspx"
+                ]
+                
+                response = None
+                for timetable_url in timetable_urls:
+                    print(f"Trying timetable URL: {timetable_url}")
+                    try:
+                        response = s.get(timetable_url, headers=headers, allow_redirects=True, timeout=30)
+                        if response.status_code == 200 and ("<table" in response.text or "timetable" in response.text.lower()):
+                            print(f"Success with timetable URL: {timetable_url}")
+                            break
+                    except Exception as e:
+                        print(f"Failed with timetable URL {timetable_url}: {e}")
+                        continue
+                
+                if not response:
+                    print("All timetable URLs failed")
+                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
+                    await show_sample_timetable(chat_id)
+                    return
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
