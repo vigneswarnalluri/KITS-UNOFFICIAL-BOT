@@ -101,91 +101,91 @@ async def _start(bot,message):
 @bot.on_message(filters.command(commands=['login']))
 async def _login(bot,message):
     try:
-        await operations.login_user(bot, message)
+        await operations.login(bot, message)
     except Exception as e:
         logging.error("Error in 'login' command: %s", e)
 
 @bot.on_message(filters.command(commands=['help']))
 async def _help(bot,message):
     try:
-        await operations.help_user(bot, message)
+        await operations.help_command(bot, message)
     except Exception as e:
         logging.error("Error in 'help' command: %s", e)
 
 @bot.on_message(filters.command(commands=['status']))
 async def _status(bot,message):
     try:
-        await operations.status_user(bot, message)
+        await operations.session_status_command(bot, message)
     except Exception as e:
         logging.error("Error in 'status' command: %s", e)
 
 @bot.on_message(filters.command(commands=['admin']))
 async def _admin(bot,message):
     try:
-        await manager_operations.admin_panel(bot, message)
+        await manager_buttons.start_admin_buttons(bot, message)
     except Exception as e:
         logging.error("Error in 'admin' command: %s", e)
 
 @bot.on_message(filters.command(commands=['announce']))
 async def _announce(bot,message):
     try:
-        await manager_operations.announce_to_all_users(bot, message)
+        await manager_operations.announcement_to_all_users(bot, message)
     except Exception as e:
         logging.error("Error in 'announce' command: %s", e)
 
 @bot.on_message(filters.command(commands=['ban']))
 async def _ban(bot,message):
     try:
-        await manager_operations.ban_user(bot, message)
+        await manager_operations.ban_username(bot, message)
     except Exception as e:
         logging.error("Error in 'ban' command: %s", e)
 
 @bot.on_message(filters.command(commands=['unban']))
 async def _unban(bot,message):
     try:
-        await manager_operations.unban_user(bot, message)
+        await manager_operations.unban_username(bot, message)
     except Exception as e:
         logging.error("Error in 'unban' command: %s", e)
 
 @bot.on_message(filters.command(commands=['authorize']))
 async def _authorize(bot,message):
     try:
-        await manager_operations.authorize_user(bot, message)
+        await manager_operations.add_admin_by_authorization(bot, message)
     except Exception as e:
         logging.error("Error in 'authorize' command: %s", e)
 
 @bot.on_message(filters.command(commands=['rshow']))
 async def _rshow(bot,message):
     try:
-        await manager_operations.show_requests(bot, message)
+        await operations.show_reports(bot, message)
     except Exception as e:
         logging.error("Error in 'rshow' command: %s", e)
 
 @bot.on_message(filters.command(commands=['rclear']))
 async def _rclear(bot,message):
     try:
-        await manager_operations.clear_requests(bot, message)
+        await operations.clean_pending_reports(bot, message)
     except Exception as e:
         logging.error("Error in 'rclear' command: %s", e)
 
 @bot.on_message(filters.command(commands=['lusers']))
 async def _lusers(bot,message):
     try:
-        await manager_operations.list_users(bot, message)
+        await operations.list_users(bot, message.chat.id)
     except Exception as e:
         logging.error("Error in 'lusers' command: %s", e)
 
 @bot.on_message(filters.command(commands=['tusers']))
 async def _tusers(bot,message):
     try:
-        await manager_operations.total_users(bot, message)
+        await operations.total_users(bot, message)
     except Exception as e:
         logging.error("Error in 'tusers' command: %s", e)
 
 @bot.on_message(filters.command(commands=['reset']))
 async def _reset(bot,message):
     try:
-        await manager_operations.reset_database(bot, message)
+        await operations.reset_user_sessions_database(bot, message)
     except Exception as e:
         logging.error("Error in 'reset' command: %s", e)
 
