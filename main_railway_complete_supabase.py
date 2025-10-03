@@ -818,38 +818,38 @@ async def get_marks(bot, message):
         try:
             # Get marks data from KITS
             with requests.Session() as s:
-            cookies = session_data['cookies']
-            headers = session_data.get('headers', {})
-            s.cookies.update(cookies)
-            
-            # Get marks page
-            marks_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx"
-            response = s.get(marks_url, headers=headers, timeout=15)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
+                cookies = session_data['cookies']
+                headers = session_data.get('headers', {})
+                s.cookies.update(cookies)
                 
-                # Extract marks data
-                marks_text = "📈 **Marks Report**\n\n"
+                # Get marks page
+                marks_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx"
+                response = s.get(marks_url, headers=headers, timeout=15)
                 
-                # Look for marks table
-                table = soup.find('table', {'id': 'gvMarks'})
-                if table:
-                    rows = table.find_all('tr')
-                    for row in rows[1:]:  # Skip header
-                        cells = row.find_all(['td', 'th'])
-                        if len(cells) >= 4:
-                            subject = cells[0].get_text(strip=True)
-                            internal = cells[1].get_text(strip=True)
-                            external = cells[2].get_text(strip=True)
-                            total = cells[3].get_text(strip=True)
-                            marks_text += f"**{subject}**: Int: {internal}, Ext: {external}, Total: {total}\n"
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Extract marks data
+                    marks_text = "📈 **Marks Report**\n\n"
+                    
+                    # Look for marks table
+                    table = soup.find('table', {'id': 'gvMarks'})
+                    if table:
+                        rows = table.find_all('tr')
+                        for row in rows[1:]:  # Skip header
+                            cells = row.find_all(['td', 'th'])
+                            if len(cells) >= 4:
+                                subject = cells[0].get_text(strip=True)
+                                internal = cells[1].get_text(strip=True)
+                                external = cells[2].get_text(strip=True)
+                                total = cells[3].get_text(strip=True)
+                                marks_text += f"**{subject}**: Int: {internal}, Ext: {external}, Total: {total}\n"
+                    else:
+                        marks_text += "No marks data found"
+                    
+                    await bot.send_message(chat_id, marks_text, reply_markup=get_main_menu_buttons())
                 else:
-                    marks_text += "No marks data found"
-                
-                await bot.send_message(chat_id, marks_text, reply_markup=get_main_menu_buttons())
-            else:
-                await bot.send_message(chat_id, "❌ Failed to fetch marks data. Please try again.")
+                    await bot.send_message(chat_id, "❌ Failed to fetch marks data. Please try again.")
         except Exception as marks_error:
             print(f"KITS marks fetch failed: {marks_error}")
             await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
