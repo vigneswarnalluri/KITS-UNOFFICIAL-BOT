@@ -28,4 +28,4 @@ ENV DISABLE_SQLITE_FALLBACK=true
 ENV SUPABASE_PRIORITY=high
 
 # Run with Supabase priority
-CMD ["python", "main_railway_buttons_supabase.py"]
+CMD ["python", "main_railway_complete_supabase.py"]

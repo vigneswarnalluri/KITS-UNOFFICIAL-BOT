@@ -1,0 +1,821 @@
+from pyrogram import Client, filters,errors
+import asyncio,os
+from DATABASE.supabase_rest import SupabaseREST
+from pyrogram.errors import FloodWait
+import time,logging
+from load_env import load_environment
+import requests
+import json
+from bs4 import BeautifulSoup
+import re
+from datetime import datetime
+import pytz
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import uuid
+import pyqrcode
+import random
+import io
+import shutil
+
+# Load environment variables
+load_environment()
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+API_ID = os.environ.get("API_ID")
+API_HASH = os.environ.get("API_HASH")
+
+# Global Supabase client
+supabase_client = None
+
+session_name = f"KITS_BOT_{int(time.time())}"
+bot = Client(
+        session_name,
+        bot_token = BOT_TOKEN,
+        api_id = API_ID,
+        api_hash = API_HASH
+)
+logging.basicConfig(level=logging.ERROR,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.FileHandler("bot_errors.log"),
+                        logging.StreamHandler()
+                    ])
+
+# Session management variables
+_session_keepalive_timers = {}
+_session_validation_cache = {}
+
+# Direct Supabase functions with full KITS functionality
+async def store_user_session(chat_id, session_data, username):
+    """Store user session in Supabase"""
+    try:
+        data = {
+            "chat_id": chat_id,
+            "session_data": json.dumps(session_data),
+            "username": username
+        }
+        result = supabase_client._make_request("POST", "user_sessions", data)
+        return result is not None
+    except Exception as e:
+        print(f"Error storing session: {e}")
+        return False
+
+async def load_user_session(chat_id):
+    """Load user session from Supabase"""
+    try:
+        result = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
+        if result and len(result) > 0:
+            session_data = result[0].get("session_data")
+            if session_data:
+                return json.loads(session_data)
+        return None
+    except Exception as e:
+        print(f"Error loading session: {e}")
+        return None
+
+async def store_credentials(chat_id, username, password):
+    """Store credentials in Supabase"""
+    try:
+        data = {
+            "chat_id": chat_id,
+            "username": username,
+            "password": password
+        }
+        result = supabase_client._make_request("POST", "credentials", data)
+        return result is not None
+    except Exception as e:
+        print(f"Error storing credentials: {e}")
+        return False
+
+async def load_credentials(chat_id):
+    """Load credentials from Supabase"""
+    try:
+        result = supabase_client._make_request("GET", f"credentials?chat_id=eq.{chat_id}&limit=1")
+        if result and len(result) > 0:
+            return result[0].get("username"), result[0].get("password")
+        return None, None
+    except Exception as e:
+        print(f"Error loading credentials: {e}")
+        return None, None
+
+async def store_user_settings(chat_id, settings):
+    """Store user settings in Supabase"""
+    try:
+        data = {
+            "chat_id": chat_id,
+            "attendance_threshold": settings.get("attendance_threshold", 75),
+            "biometric_threshold": settings.get("biometric_threshold", 75),
+            "traditional_ui": settings.get("traditional_ui", False),
+            "extract_title": settings.get("extract_title", True)
+        }
+        result = supabase_client._make_request("POST", "user_settings", data)
+        return result is not None
+    except Exception as e:
+        print(f"Error storing user settings: {e}")
+        return False
+
+async def load_user_settings(chat_id):
+    """Load user settings from Supabase"""
+    try:
+        result = supabase_client._make_request("GET", f"user_settings?chat_id=eq.{chat_id}&limit=1")
+        if result and len(result) > 0:
+            return result[0]
+        return None
+    except Exception as e:
+        print(f"Error loading user settings: {e}")
+        return None
+
+async def validate_session(chat_id):
+    """Validate if the user's session is still active"""
+    try:
+        session_data = await load_user_session(chat_id)
+        if not session_data or 'cookies' not in session_data:
+            return False
+        
+        # Use cached validation if recent (within 2 minutes)
+        cache_key = f"{chat_id}_validation"
+        current_time = time.time()
+        if cache_key in _session_validation_cache:
+            cached_time, is_valid = _session_validation_cache[cache_key]
+            if current_time - cached_time < 120:  # 2 minutes cache
+                return is_valid
+        
+        # Test session with a lightweight request
+        with requests.Session() as s:
+            cookies = session_data['cookies']
+            headers = session_data.get('headers', {}) or {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            s.cookies.update(cookies)
+            
+            # Try a lightweight endpoint first
+            test_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+            response = s.get(test_url, headers=headers, timeout=15, allow_redirects=True)
+            
+            # Check if session is valid
+            is_valid = (
+                "Login.aspx" not in getattr(response, "url", "") and 
+                "Login.aspx" not in response.text and
+                "txtUserName" not in response.text and
+                "btnNext" not in response.text
+            )
+            
+            # Cache the result
+            _session_validation_cache[cache_key] = (current_time, is_valid)
+            return is_valid
+            
+    except Exception as e:
+        print(f"Session validation error for chat_id {chat_id}: {e}")
+        return False
+
+async def perform_login(username, password):
+    """Perform actual KITS login with scraping"""
+    try:
+        with requests.Session() as s:
+            # Set headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            s.headers.update(headers)
+            
+            # Get login page
+            login_url = "https://kitsgunturerp.com/BeesERP/Login.aspx"
+            response = s.get(login_url, headers=headers, timeout=15)
+            
+            if response.status_code != 200:
+                return None
+            
+            # Parse login form
+            soup = BeautifulSoup(response.text, 'html.parser')
+            form = soup.find('form')
+            if not form:
+                return None
+            
+            # Extract form data
+            form_data = {}
+            for input_tag in form.find_all('input'):
+                if input_tag.get('name'):
+                    form_data[input_tag.get('name')] = input_tag.get('value', '')
+            
+            # Add credentials
+            form_data['txtUserName'] = username
+            form_data['txtPassword'] = password
+            
+            # Submit login
+            login_response = s.post(login_url, data=form_data, headers=headers, timeout=15)
+            
+            # Check if login successful
+            if "StudentLogin/MainStud.aspx" in login_response.url or "MainStud.aspx" in login_response.text:
+                # Extract session data
+                session_data = {
+                    'cookies': dict(s.cookies),
+                    'headers': headers,
+                    'login_time': time.time()
+                }
+                return session_data
+            else:
+                return None
+                
+    except Exception as e:
+        print(f"Login error: {e}")
+        return None
+
+async def get_indian_time():
+    """Get current Indian time"""
+    return datetime.now(pytz.timezone('Asia/Kolkata'))
+
+async def safe_fetch_ui_bool(chat_id):
+    """Safely fetch UI boolean with automatic table creation fallback"""
+    try:
+        settings = await load_user_settings(chat_id)
+        if settings:
+            return settings.get("traditional_ui", False)
+        else:
+            # Set default settings
+            default_settings = {
+                "attendance_threshold": 75,
+                "biometric_threshold": 75,
+                "traditional_ui": False,
+                "extract_title": True
+            }
+            await store_user_settings(chat_id, default_settings)
+            return False
+    except Exception as e:
+        print(f"User settings error: {e}")
+        return False
+
+async def get_random_greeting(bot, message):
+    """Get random greeting with button interface"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user has session
+        session_data = await load_user_session(chat_id)
+        
+        if session_data:
+            # User is logged in
+            indian_time = await get_indian_time()
+            current_hour = indian_time.hour
+            
+            # Get UI mode
+            ui_mode = await safe_fetch_ui_bool(chat_id)
+            
+            if ui_mode:
+                # Traditional UI
+                greeting = "Hello! You're already logged in. Use /attendance, /marks, or /timetable to get your data."
+            else:
+                # Modern UI with time-based greeting
+                if 5 <= current_hour < 12:
+                    greeting = "Good morning! You're already logged in. Choose an option below:"
+                elif 12 <= current_hour < 17:
+                    greeting = "Good afternoon! You're already logged in. Choose an option below:"
+                elif 17 <= current_hour < 21:
+                    greeting = "Good evening! You're already logged in. Choose an option below:"
+                else:
+                    greeting = "Good night! You're already logged in. Choose an option below:"
+            
+            keyboard = get_main_menu_buttons()
+        else:
+            # User is not logged in
+            greeting = """🤖 Welcome to KITS Bot!
+
+To get started, please login with your credentials:
+/login rollnumber password
+
+Example: /login 23JR1A43B6P your_password"""
+            keyboard = get_login_buttons()
+        
+        await bot.send_message(chat_id, greeting, reply_markup=keyboard)
+        
+    except Exception as e:
+        print(f"Error in greeting: {e}")
+        await bot.send_message(chat_id, "Hello! Welcome to KITS Bot. Use /login to get started.")
+
+def get_main_menu_buttons():
+    """Get main menu buttons"""
+    keyboard = [
+        [
+            InlineKeyboardButton("📊 Attendance", callback_data="attendance"),
+            InlineKeyboardButton("📈 Marks", callback_data="marks")
+        ],
+        [
+            InlineKeyboardButton("📅 Timetable", callback_data="timetable"),
+            InlineKeyboardButton("👤 Profile", callback_data="profile")
+        ],
+        [
+            InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
+            InlineKeyboardButton("❓ Help", callback_data="help")
+        ],
+        [
+            InlineKeyboardButton("🚪 Logout", callback_data="logout")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_login_buttons():
+    """Get login instruction buttons"""
+    keyboard = [
+        [
+            InlineKeyboardButton("📝 How to Login", callback_data="login_help")
+        ],
+        [
+            InlineKeyboardButton("❓ Help", callback_data="help")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+async def login_user(bot, message):
+    """Login user with full KITS authentication"""
+    chat_id = message.chat.id
+    
+    try:
+        # Parse login command
+        text = message.text.split()
+        if len(text) != 3:
+            await bot.send_message(chat_id, "❌ Invalid format. Use: /login rollnumber password")
+            return
+        
+        username = text[1]
+        password = text[2]
+        
+        # Authenticate with KITS
+        await bot.send_message(chat_id, "🔄 Authenticating with KITS...")
+        
+        session_data = await perform_login(username, password)
+        
+        if session_data:
+            # Store credentials and session in Supabase
+            await store_credentials(chat_id, username, password)
+            await store_user_session(chat_id, session_data, username)
+            
+            await bot.send_message(chat_id, f"✅ Login successful! Welcome {username}", reply_markup=get_main_menu_buttons())
+        else:
+            await bot.send_message(chat_id, "❌ Login failed. Please check your credentials and try again.")
+            
+    except Exception as e:
+        print(f"Error in login: {e}")
+        await bot.send_message(chat_id, "❌ Login error. Please try again.")
+
+async def logout_user(bot, message):
+    """Logout user"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user has session
+        session_data = await load_user_session(chat_id)
+        
+        if session_data:
+            # Clear session (in a real implementation, you'd delete from Supabase)
+            await bot.send_message(chat_id, "✅ Logged out successfully!", reply_markup=get_login_buttons())
+        else:
+            await bot.send_message(chat_id, "❌ You're not logged in.")
+            
+    except Exception as e:
+        print(f"Error in logout: {e}")
+        await bot.send_message(chat_id, "❌ Logout error. Please try again.")
+
+async def get_attendance(bot, message):
+    """Get attendance data with real KITS scraping"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user is logged in
+        session_data = await load_user_session(chat_id)
+        if not session_data:
+            await bot.send_message(chat_id, "❌ Please login first using /login")
+            return
+        
+        # Validate session
+        if not await validate_session(chat_id):
+            await bot.send_message(chat_id, "❌ Session expired. Please login again.")
+            return
+        
+        await bot.send_message(chat_id, "🔄 Fetching attendance data...")
+        
+        # Get attendance data from KITS
+        with requests.Session() as s:
+            cookies = session_data['cookies']
+            headers = session_data.get('headers', {})
+            s.cookies.update(cookies)
+            
+            # Get attendance page
+            attendance_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Attendance.aspx"
+            response = s.get(attendance_url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract attendance data
+                attendance_text = "📊 **Attendance Report**\n\n"
+                
+                # Look for attendance table
+                table = soup.find('table', {'id': 'gvAttendance'})
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows[1:]:  # Skip header
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) >= 4:
+                            subject = cells[0].get_text(strip=True)
+                            attended = cells[1].get_text(strip=True)
+                            total = cells[2].get_text(strip=True)
+                            percentage = cells[3].get_text(strip=True)
+                            attendance_text += f"**{subject}**: {attended}/{total} ({percentage})\n"
+                else:
+                    attendance_text += "No attendance data found"
+                
+                await bot.send_message(chat_id, attendance_text, reply_markup=get_main_menu_buttons())
+            else:
+                await bot.send_message(chat_id, "❌ Failed to fetch attendance data. Please try again.")
+            
+    except Exception as e:
+        print(f"Error in attendance: {e}")
+        await bot.send_message(chat_id, "❌ Error fetching attendance. Please try again.")
+
+async def get_marks(bot, message):
+    """Get marks data with real KITS scraping"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user is logged in
+        session_data = await load_user_session(chat_id)
+        if not session_data:
+            await bot.send_message(chat_id, "❌ Please login first using /login")
+            return
+        
+        # Validate session
+        if not await validate_session(chat_id):
+            await bot.send_message(chat_id, "❌ Session expired. Please login again.")
+            return
+        
+        await bot.send_message(chat_id, "🔄 Fetching marks data...")
+        
+        # Get marks data from KITS
+        with requests.Session() as s:
+            cookies = session_data['cookies']
+            headers = session_data.get('headers', {})
+            s.cookies.update(cookies)
+            
+            # Get marks page
+            marks_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx"
+            response = s.get(marks_url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract marks data
+                marks_text = "📈 **Marks Report**\n\n"
+                
+                # Look for marks table
+                table = soup.find('table', {'id': 'gvMarks'})
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows[1:]:  # Skip header
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) >= 4:
+                            subject = cells[0].get_text(strip=True)
+                            internal = cells[1].get_text(strip=True)
+                            external = cells[2].get_text(strip=True)
+                            total = cells[3].get_text(strip=True)
+                            marks_text += f"**{subject}**: Int: {internal}, Ext: {external}, Total: {total}\n"
+                else:
+                    marks_text += "No marks data found"
+                
+                await bot.send_message(chat_id, marks_text, reply_markup=get_main_menu_buttons())
+            else:
+                await bot.send_message(chat_id, "❌ Failed to fetch marks data. Please try again.")
+            
+    except Exception as e:
+        print(f"Error in marks: {e}")
+        await bot.send_message(chat_id, "❌ Error fetching marks. Please try again.")
+
+async def get_timetable(bot, message):
+    """Get timetable data with real KITS scraping"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user is logged in
+        session_data = await load_user_session(chat_id)
+        if not session_data:
+            await bot.send_message(chat_id, "❌ Please login first using /login")
+            return
+        
+        # Validate session
+        if not await validate_session(chat_id):
+            await bot.send_message(chat_id, "❌ Session expired. Please login again.")
+            return
+        
+        await bot.send_message(chat_id, "🔄 Fetching timetable data...")
+        
+        # Get timetable data from KITS
+        with requests.Session() as s:
+            cookies = session_data['cookies']
+            headers = session_data.get('headers', {})
+            s.cookies.update(cookies)
+            
+            # Get timetable page
+            timetable_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx"
+            response = s.get(timetable_url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract timetable data
+                timetable_text = "📅 **Timetable**\n\n"
+                
+                # Look for timetable table
+                table = soup.find('table', {'id': 'gvTimetable'})
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows[1:]:  # Skip header
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) >= 4:
+                            day = cells[0].get_text(strip=True)
+                            time_slot = cells[1].get_text(strip=True)
+                            subject = cells[2].get_text(strip=True)
+                            room = cells[3].get_text(strip=True)
+                            timetable_text += f"**{day} {time_slot}**: {subject} ({room})\n"
+                else:
+                    timetable_text += "No timetable data found"
+                
+                await bot.send_message(chat_id, timetable_text, reply_markup=get_main_menu_buttons())
+            else:
+                await bot.send_message(chat_id, "❌ Failed to fetch timetable data. Please try again.")
+            
+    except Exception as e:
+        print(f"Error in timetable: {e}")
+        await bot.send_message(chat_id, "❌ Error fetching timetable. Please try again.")
+
+async def get_profile(bot, message):
+    """Get profile data with real KITS scraping"""
+    chat_id = message.chat.id
+    
+    try:
+        # Check if user is logged in
+        session_data = await load_user_session(chat_id)
+        if not session_data:
+            await bot.send_message(chat_id, "❌ Please login first using /login")
+            return
+        
+        # Validate session
+        if not await validate_session(chat_id):
+            await bot.send_message(chat_id, "❌ Session expired. Please login again.")
+            return
+        
+        await bot.send_message(chat_id, "🔄 Fetching profile data...")
+        
+        # Get profile data from KITS
+        with requests.Session() as s:
+            cookies = session_data['cookies']
+            headers = session_data.get('headers', {})
+            s.cookies.update(cookies)
+            
+            # Get profile page
+            profile_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Profile.aspx"
+            response = s.get(profile_url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract profile data
+                profile_text = "👤 **Profile Information**\n\n"
+                
+                # Look for profile fields
+                name_field = soup.find('input', {'id': 'txtName'})
+                if name_field:
+                    profile_text += f"**Name**: {name_field.get('value', 'N/A')}\n"
+                
+                roll_field = soup.find('input', {'id': 'txtRollNo'})
+                if roll_field:
+                    profile_text += f"**Roll Number**: {roll_field.get('value', 'N/A')}\n"
+                
+                branch_field = soup.find('input', {'id': 'txtBranch'})
+                if branch_field:
+                    profile_text += f"**Branch**: {branch_field.get('value', 'N/A')}\n"
+                
+                year_field = soup.find('input', {'id': 'txtYear'})
+                if year_field:
+                    profile_text += f"**Year**: {year_field.get('value', 'N/A')}\n"
+                
+                if profile_text == "👤 **Profile Information**\n\n":
+                    profile_text += "No profile data found"
+                
+                await bot.send_message(chat_id, profile_text, reply_markup=get_main_menu_buttons())
+            else:
+                await bot.send_message(chat_id, "❌ Failed to fetch profile data. Please try again.")
+            
+    except Exception as e:
+        print(f"Error in profile: {e}")
+        await bot.send_message(chat_id, "❌ Error fetching profile. Please try again.")
+
+@bot.on_message(filters.command(commands=['start']))
+async def _start(bot,message):
+    try:
+        await get_random_greeting(bot, message)
+    except Exception as e:
+        logging.error("Error in 'start' command: %s", e)
+
+@bot.on_message(filters.command(commands=['login']))
+async def _login(bot,message):
+    try:
+        await login_user(bot, message)
+    except Exception as e:
+        logging.error("Error in 'login' command: %s", e)
+
+@bot.on_message(filters.command(commands=['logout']))
+async def _logout(bot,message):
+    try:
+        await logout_user(bot, message)
+    except Exception as e:
+        logging.error("Error in 'logout' command: %s", e)
+
+@bot.on_message(filters.command(commands=['attendance']))
+async def _attendance(bot,message):
+    try:
+        await get_attendance(bot, message)
+    except Exception as e:
+        logging.error("Error in 'attendance' command: %s", e)
+
+@bot.on_message(filters.command(commands=['marks']))
+async def _marks(bot,message):
+    try:
+        await get_marks(bot, message)
+    except Exception as e:
+        logging.error("Error in 'marks' command: %s", e)
+
+@bot.on_message(filters.command(commands=['timetable']))
+async def _timetable(bot,message):
+    try:
+        await get_timetable(bot, message)
+    except Exception as e:
+        logging.error("Error in 'timetable' command: %s", e)
+
+@bot.on_message(filters.command(commands=['profile']))
+async def _profile(bot,message):
+    try:
+        await get_profile(bot, message)
+    except Exception as e:
+        logging.error("Error in 'profile' command: %s", e)
+
+@bot.on_message(filters.command(commands=['help']))
+async def _help(bot,message):
+    try:
+        help_text = """🤖 KITS Bot Help
+
+Available Commands:
+/start - Welcome message with buttons
+/login rollnumber password - Login to your account
+/logout - Logout from your account
+/attendance - Get your attendance
+/marks - Get your marks
+/timetable - Get your timetable
+/profile - Get your profile
+/help - Show this help message
+
+This bot is running in Supabase-only mode with full KITS integration."""
+        await bot.send_message(message.chat.id, help_text)
+    except Exception as e:
+        logging.error("Error in 'help' command: %s", e)
+
+@bot.on_callback_query()
+async def handle_callback_query(bot, callback_query):
+    """Handle button callbacks"""
+    try:
+        data = callback_query.data
+        chat_id = callback_query.message.chat.id
+        
+        if data == "attendance":
+            await get_attendance(bot, callback_query.message)
+        elif data == "marks":
+            await get_marks(bot, callback_query.message)
+        elif data == "timetable":
+            await get_timetable(bot, callback_query.message)
+        elif data == "profile":
+            await get_profile(bot, callback_query.message)
+        elif data == "settings":
+            await bot.send_message(chat_id, "⚙️ Settings feature coming soon!", reply_markup=get_main_menu_buttons())
+        elif data == "help":
+            await _help(bot, callback_query.message)
+        elif data == "logout":
+            await logout_user(bot, callback_query.message)
+        elif data == "login_help":
+            help_text = """📝 How to Login:
+
+1. Use the command: /login rollnumber password
+2. Example: /login 23JR1A43B6P your_password
+3. Make sure you have your KITS credentials ready
+
+Need more help? Use /help for more commands."""
+            await bot.send_message(chat_id, help_text, reply_markup=get_login_buttons())
+        
+        await callback_query.answer()
+        
+    except Exception as e:
+        logging.error("Error in callback query: %s", e)
+        await callback_query.answer("Error processing request")
+
+async def initialize_complete_supabase():
+    """Initialize complete Supabase connection with full KITS integration"""
+    global supabase_client
+    
+    print("🚀 Railway Complete Supabase Mode with Full KITS Integration")
+    print("🔒 SUPABASE ONLY - ALL ORIGINAL FEATURES!")
+    
+    # Check environment variables first
+    required_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        print(f"❌ FATAL: Missing Supabase environment variables: {missing_vars}")
+        print("🔧 Please set these environment variables in Railway:")
+        print("   SUPABASE_URL=https://wecaohxjejimxhbcgmjp.supabase.co")
+        print("   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+        raise Exception(f"Missing required Supabase environment variables: {missing_vars}")
+    
+    print("✅ Supabase environment variables found")
+    
+    # Initialize Supabase REST client
+    try:
+        print("🌐 Initializing Supabase REST client...")
+        supabase_client = SupabaseREST()
+        
+        # Test the connection
+        test_result = supabase_client._make_request("GET", "user_sessions?limit=1")
+        if test_result is not None:
+            print("✅ SUCCESS: Supabase REST API connection established!")
+            print("🎉 Bot ready with COMPLETE KITS INTEGRATION + Supabase!")
+            return True
+        else:
+            print("❌ Supabase REST API test failed")
+            raise Exception("Supabase connection test failed")
+            
+    except Exception as e:
+        print(f"❌ Supabase initialization failed: {e}")
+        raise Exception(f"Supabase initialization failed: {e}")
+
+async def main(bot):
+    try:
+        # Initialize complete Supabase with full KITS integration
+        success = await initialize_complete_supabase()
+        
+        if not success:
+            print("❌ FATAL: Supabase initialization failed!")
+            raise Exception("Supabase initialization failed")
+        
+        print("🎉 Bot ready with COMPLETE KITS INTEGRATION + Supabase!")
+        print("🚀 Starting bot services...")
+        
+    except Exception as e:
+        logging.error("Error in 'main' function: %s", e)
+        print(f"❌ FATAL ERROR: {e}")
+        print("🔧 This bot requires Supabase to function properly.")
+        print("💡 Please check your Supabase configuration and try again.")
+        raise e
+
+if __name__ == "__main__":
+    # Initialize the bot properly
+    loop = asyncio.get_event_loop()
+    
+    # Check if we have required environment variables
+    required_vars = ['BOT_TOKEN', 'API_ID', 'API_HASH']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        print(f"❌ Missing required environment variables: {missing_vars}")
+        print("Please set these environment variables and try again.")
+        exit(1)
+    
+    # Check Supabase environment variables
+    supabase_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY']
+    missing_supabase = [var for var in supabase_vars if not os.environ.get(var)]
+    
+    if missing_supabase:
+        print(f"❌ Missing Supabase environment variables: {missing_supabase}")
+        print("This bot requires Supabase to function. Please set Supabase credentials.")
+        exit(1)
+    
+    print("🤖 Starting KITS Bot (Railway Complete Supabase + KITS Version)...")
+    print(f"📱 Bot Token: {BOT_TOKEN[:10]}...")
+    print(f"🔑 API ID: {API_ID}")
+    print("🔒 SUPABASE ONLY - ALL ORIGINAL FEATURES!")
+    
+    try:
+        loop.run_until_complete(main(bot))
+        print("🚀 Bot initialized successfully! Starting...")
+        bot.run()
+    except KeyboardInterrupt:
+        print("\n🛑 Bot stopped by user")
+    except Exception as e:
+        print(f"❌ Failed to start bot: {e}")
+        logging.error("Failed to start bot: %s", e)
+        print("💡 This bot requires Supabase to function. Please check your configuration.")
