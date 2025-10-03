@@ -720,8 +720,7 @@ async def get_attendance(bot, message):
             
             if dashboard_response.status_code != 200:
                 print(f"Dashboard access failed: {dashboard_response.status_code}")
-                await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                await show_sample_attendance(chat_id)
+                await bot.send_message(chat_id, f"❌ Failed to access KITS dashboard (Status: {dashboard_response.status_code}). Please try again.")
                 return
             
             # Check if we're redirected to login (session expired)
@@ -760,8 +759,7 @@ async def get_attendance(bot, message):
             
             if not response:
                 print("All attendance URLs failed")
-                await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                await show_sample_attendance(chat_id)
+                await bot.send_message(chat_id, "❌ Failed to fetch attendance data from KITS. Please try again later.")
                 return
             
             print(f"Attendance response status: {response.status_code}")
@@ -853,8 +851,7 @@ async def get_marks(bot, message):
                 
                 if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
                     print("Dashboard access failed for marks")
-                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                    await show_sample_marks(chat_id)
+                    await bot.send_message(chat_id, "❌ Failed to access KITS dashboard for marks. Please try again.")
                     return
                 
                 # Try multiple marks URLs
@@ -878,8 +875,7 @@ async def get_marks(bot, message):
                 
                 if not response:
                     print("All marks URLs failed")
-                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                    await show_sample_marks(chat_id)
+                    await bot.send_message(chat_id, "❌ Failed to fetch marks data from KITS. Please try again later.")
                     return
                 
                 if response.status_code == 200:
@@ -908,8 +904,7 @@ async def get_marks(bot, message):
                     await bot.send_message(chat_id, "❌ Failed to fetch marks data. Please try again.")
         except Exception as marks_error:
             print(f"KITS marks fetch failed: {marks_error}")
-            await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-            await show_sample_marks(chat_id)
+            await bot.send_message(chat_id, f"❌ Error fetching marks: {marks_error}")
             
     except Exception as e:
         print(f"Error in marks: {e}")
@@ -947,8 +942,7 @@ async def get_timetable(bot, message):
                 
                 if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
                     print("Dashboard access failed for timetable")
-                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                    await show_sample_timetable(chat_id)
+                    await bot.send_message(chat_id, "❌ Failed to access KITS dashboard for timetable. Please try again.")
                     return
                 
                 # Try multiple timetable URLs
@@ -972,8 +966,7 @@ async def get_timetable(bot, message):
                 
                 if not response:
                     print("All timetable URLs failed")
-                    await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-                    await show_sample_timetable(chat_id)
+                    await bot.send_message(chat_id, "❌ Failed to fetch timetable data from KITS. Please try again later.")
                     return
                 
                 if response.status_code == 200:
@@ -1002,8 +995,7 @@ async def get_timetable(bot, message):
                     await bot.send_message(chat_id, "❌ Failed to fetch timetable data. Please try again.")
         except Exception as timetable_error:
             print(f"KITS timetable fetch failed: {timetable_error}")
-            await bot.send_message(chat_id, "⚠️ KITS system is currently unavailable. Showing sample data:")
-            await show_sample_timetable(chat_id)
+            await bot.send_message(chat_id, f"❌ Error fetching timetable: {timetable_error}")
             
     except Exception as e:
         print(f"Error in timetable: {e}")
