@@ -1,7 +1,8 @@
 from bs4 import BeautifulSoup
 import requests
 from DATABASE import user_settings,tdatabase
-from METHODS import operations,labs_handler,pdf_compressor
+from METHODS import operations,labs_handler
+# pdf_compressor removed (PIL dependency)
 from Buttons import buttons
 import os,re
 
@@ -480,25 +481,9 @@ async def upload_lab_record(bot,message,title,subject_code,week_no):
     pdf_folder = "pdfs"
     if await labs_handler.check_pdf_size_above_1mb(chat_id) is True:
         message_of_pdf_operation_start = await bot.edit_message_text(chat_id,message_sent_when_started.id,"PDF Above 1 MB Trying to Compress")
-        if pdf_compressor.use_pdf_compress_scrape is True and await labs_handler.get_pdf_size(bot,chat_id) > 5:
-            pdf_compression = await pdf_compressor.compress_pdf_scrape(bot,message)
-            compress_pdf_status,status_message = pdf_compression
-            if compress_pdf_status is False:
-                await bot.send_message(chat_id,status_message)
-            else:
-                message_of_pdf_operation = await bot.edit_message_text(chat_id,message_of_pdf_operation_start.id,"Compressed PDF Successfully.")
-
-        else:
-            if await pdf_compressor.compress_pdf(bot,chat_id) is True:
-                message_of_pdf_operation = await bot.edit_message_text(chat_id,message_of_pdf_operation_start.id,"Compressed Pdf Successfully.")
-                check,size = await labs_handler.check_pdf_size_after_compression(chat_id)
-                if check is True:
-                    failed_message = f"""
-● ERROR : Unable to reduce the PDF file size to less than 1MB.
-
-● PDF Size : {size}"""
-                    await bot.send_message(chat_id,failed_message)
-                    return
+        # PDF compression disabled (PIL not available)
+        await bot.edit_message_text(chat_id,message_of_pdf_operation_start.id,"PDF compression disabled - please ensure file is under 1MB")
+        await bot.send_message(chat_id,"⚠️ PDF compression is currently disabled. Please ensure your PDF is under 1MB before uploading.")
     else:
         message_of_pdf_operation = message_sent_when_started
     extracted_user_details = await user_lab_data(bot,chat_id)
