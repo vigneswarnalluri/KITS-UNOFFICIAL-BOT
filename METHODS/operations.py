@@ -969,8 +969,26 @@ async def attendance_subjectwise(bot, message):
             elif ui_mode[0] == 1:
                 await bot.send_message(chat_id, text=login_message_traditional_ui)
             return
+    else:
+        # Validate existing session before proceeding (same as bunk function)
+        if not await validate_session(chat_id):
+            print(f"Session validation failed for chat_id: {chat_id}, attempting auto-reconnection")
+
+            # Try auto-reconnection
+            if await auto_reconnect_session(bot, chat_id):
+                print(f"Auto-reconnection successful for chat_id: {chat_id}")
+            else:
+                print(f"Auto-reconnection failed for chat_id: {chat_id}")
+                await bot.send_message(chat_id, "Your session has expired. Please login again using /login command.")
+                await buttons.start_user_buttons(bot, message)
+                return
 
     session_data = await tdatabase.load_user_session(chat_id)
+    
+    # Start session keep-alive if not already running
+    if chat_id not in _session_keepalive_timers:
+        await start_session_keepalive(bot, chat_id)
+    
     candidate_attendance_urls = [
         "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx",
         "https://kitsgunturerp.com/BeesERP/StudentAttendance.aspx",
