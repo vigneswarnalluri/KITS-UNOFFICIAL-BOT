@@ -249,16 +249,9 @@ async def main(bot):
     print("✅ Bot started successfully!")
     print("🔄 Bot is now running 24/7 with keep-alive!")
     
-    # Keep the bot running
-    print("🔄 Bot is running... Press Ctrl+C to stop")
-    try:
-        # Keep the bot running indefinitely
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("🛑 Bot stopped by user")
-    finally:
-        await bot.stop()
+    # Keep the bot running using pyrogram's built-in method
+    print("🔄 Bot is running...")
+    await bot.run()
 
 if __name__ == "__main__":
     try:
