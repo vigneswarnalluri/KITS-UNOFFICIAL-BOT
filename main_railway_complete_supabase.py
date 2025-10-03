@@ -148,16 +148,38 @@ async def store_credentials(chat_id, username, password):
             "username": username,
             "password": password
         }
-        # Try user_credentials table first, then credentials
+        # Try to update existing credentials first, then insert if not exists
         try:
-            result = supabase_client._make_request("POST", "user_credentials", data)
-            print(f"Credentials stored in user_credentials: {result}")
+            # Check if credentials exist
+            existing = supabase_client._make_request("GET", f"user_credentials?chat_id=eq.{chat_id}&limit=1")
+            print(f"🔍 Existing credentials check: {existing}")
+            
+            if existing and len(existing) > 0:
+                # Update existing credentials
+                result = supabase_client._make_request("PATCH", f"user_credentials?chat_id=eq.{chat_id}", data)
+                print(f"🔄 Credentials updated: {result}")
+            else:
+                # Insert new credentials
+                result = supabase_client._make_request("POST", "user_credentials", data)
+                print(f"➕ Credentials inserted: {result}")
+            
             return result is not None
+            
         except Exception as e:
-            print(f"user_credentials failed, trying credentials: {e}")
-            result = supabase_client._make_request("POST", "credentials", data)
-            print(f"Credentials stored in credentials: {result}")
-            return result is not None
+            print(f"user_credentials failed, trying credentials table: {e}")
+            # Try credentials table as fallback
+            try:
+                existing = supabase_client._make_request("GET", f"credentials?chat_id=eq.{chat_id}&limit=1")
+                if existing and len(existing) > 0:
+                    result = supabase_client._make_request("PATCH", f"credentials?chat_id=eq.{chat_id}", data)
+                    print(f"🔄 Credentials updated in credentials table: {result}")
+                else:
+                    result = supabase_client._make_request("POST", "credentials", data)
+                    print(f"➕ Credentials inserted in credentials table: {result}")
+                return result is not None
+            except Exception as e2:
+                print(f"Both credential tables failed: {e2}")
+                return False
     except Exception as e:
         print(f"Error storing credentials: {e}")
         return False
