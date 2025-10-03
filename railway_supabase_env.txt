@@ -32,6 +32,12 @@ DB_POOL_MIN=1
 DB_POOL_MAX=5
 DB_TIMEOUT=30
 
+# CRITICAL: Force Supabase REST API (most reliable on Railway)
+FORCE_SUPABASE_REST=true
+DISABLE_SQLITE_FALLBACK=true
+SUPABASE_PRIORITY=rest
+RAILWAY_SUPABASE_ONLY=true
+
 # CRITICAL: Do NOT set these (they cause localhost fallback)
 # POSTGRES_HOST=localhost
 # POSTGRES_USER_ID=postgres

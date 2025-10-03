@@ -6,6 +6,7 @@ certifi==2023.7.22
 charset-normalizer==3.2.0
 idna==3.4
 packaging==23.1
+pillow>=8.0.0,<9.0.0 --only-binary=pillow
 psutil==5.9.5
 pyaes==1.6.1
 PyQRCode==1.2.1
