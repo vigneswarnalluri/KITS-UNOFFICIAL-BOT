@@ -3,7 +3,7 @@ import asyncio,os
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from DATABASE.supabase_database import supabase_db
 from DATABASE.supabase_rest import SupabaseREST
-from METHODS import labs_handler, operations,manager_operations,lab_operations,pdf_compressor
+from METHODS import labs_handler, operations,manager_operations,lab_operations
 from Buttons import buttons,manager_buttons
 from pyrogram.errors import FloodWait
 import time,logging
@@ -156,19 +156,21 @@ async def _managersettings(bot,message):
     except Exception as e:
         logging.error("Error in 'managersettings' command: %s", e)
 
-@bot.on_message(filters.command(commands=['compresspdfs']))
-async def _compresspdfs(bot,message):
-    try:
-        await pdf_compressor.compress_pdfs(bot, message)
-    except Exception as e:
-        logging.error("Error in 'compresspdfs' command: %s", e)
+# PDF compression disabled (Pillow not available)
+# @bot.on_message(filters.command(commands=['compresspdfs']))
+# async def _compresspdfs(bot,message):
+#     try:
+#         await pdf_compressor.compress_pdfs(bot, message)
+#     except Exception as e:
+#         logging.error("Error in 'compresspdfs' command: %s", e)
 
-@bot.on_message(filters.document)
-async def _document_handler(bot,message):
-    try:
-        await pdf_compressor.handle_document(bot, message)
-    except Exception as e:
-        logging.error("Error in document handler: %s", e)
+# PDF document handling disabled (Pillow not available)
+# @bot.on_message(filters.document)
+# async def _document_handler(bot,message):
+#     try:
+#         await pdf_compressor.handle_document(bot, message)
+#     except Exception as e:
+#         logging.error("Error in document handler: %s", e)
 
 @bot.on_callback_query()
 async def _callback_query(bot, callback_query):
@@ -207,8 +209,9 @@ async def handle_callback_query(bot, callback_query):
     elif data.startswith("manager_"):
         await manager_operations.handle_manager_callback(bot, callback_query)
     
-    elif data == "compress_pdf":
-        await pdf_compressor.handle_compress_callback(bot, callback_query)
+    # PDF compression disabled (Pillow not available)
+    # elif data == "compress_pdf":
+    #     await pdf_compressor.handle_compress_callback(bot, callback_query)
     
     else:
         # Unknown callback - just answer it
