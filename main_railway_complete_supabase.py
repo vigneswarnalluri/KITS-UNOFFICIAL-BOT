@@ -713,54 +713,50 @@ async def get_attendance(bot, message):
             print(f"Session cookies: {cookies}")
             print(f"Session headers: {headers}")
             
-            # Use the original KITS scraping method - MainStud.aspx dashboard with postback
-            dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
-            print(f"Accessing KITS dashboard: {dashboard_url}")
-            dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
-            
-            if dashboard_response.status_code != 200:
-                print(f"Dashboard access failed: {dashboard_response.status_code}")
-                await bot.send_message(chat_id, f"❌ Failed to access KITS dashboard (Status: {dashboard_response.status_code}). Please try again.")
-                return
-            
-            # Check if we're redirected to login (session expired)
-            if "Login.aspx" in dashboard_response.url or "txtUserName" in dashboard_response.text:
-                print("Session expired - redirected to login")
-                await bot.send_message(chat_id, "❌ Session expired. Please login again.", reply_markup=get_main_menu_buttons())
-                return
-            
-            # Parse dashboard to get form fields for postback
-            dashboard_soup = BeautifulSoup(dashboard_response.text, 'html.parser')
-            viewstate = dashboard_soup.find('input', {'name': '__VIEWSTATE'})
-            viewstategenerator = dashboard_soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
-            eventvalidation = dashboard_soup.find('input', {'name': '__EVENTVALIDATION'})
-            
-            print(f"Dashboard form fields found - VIEWSTATE: {viewstate is not None}, EVENTVALIDATION: {eventvalidation is not None}")
-            
-            # Try multiple attendance URLs with proper headers
-            attendance_urls = [
+            # Use the exact same method as the original bot
+            candidate_attendance_urls = [
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx",
                 "https://kitsgunturerp.com/BeesERP/StudentAttendance.aspx",
-                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudentAttendance.aspx", 
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudentAttendance.aspx",
                 "https://kitsgunturerp.com/BeesERP/StudentLogin/Attendance.aspx",
-                "https://kitsgunturerp.com/BeesERP/Attendance.aspx"
+                "https://kitsgunturerp.com/BeesERP/Attendance.aspx",
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudAttendance.aspx"
             ]
-            
-            response = None
-            for attendance_url in attendance_urls:
-                print(f"Trying attendance URL: {attendance_url}")
+
+            attendance_response = None
+            for url in candidate_attendance_urls:
                 try:
-                    response = s.get(attendance_url, headers=headers, allow_redirects=True, timeout=30)
-                    if response.status_code == 200 and ("<table" in response.text or "%" in response.text):
-                        print(f"Success with URL: {attendance_url}")
+                    print(f"Trying attendance URL: {url}")
+                    resp = s.get(url, headers=headers, allow_redirects=True, timeout=30)
+                    print(f"Response status: {resp.status_code}, URL: {resp.url}")
+                    
+                    # Check if redirected to login (session expired)
+                    if (
+                        "Login.aspx" in getattr(resp, "url", "")
+                        or "txtUserName" in resp.text
+                        or "btnNext" in resp.text
+                    ):
+                        print(f"Session expired for URL: {url}")
+                        continue
+                    
+                    # Check if we got attendance data
+                    if "<table" in resp.text or "%" in resp.text:
+                        print(f"Found attendance data at: {url}")
+                        attendance_response = resp
                         break
+                    else:
+                        print(f"No attendance data found at: {url}")
+                        
                 except Exception as e:
-                    print(f"Failed with URL {attendance_url}: {e}")
+                    print(f"Error accessing {url}: {e}")
                     continue
             
-            if not response:
-                print("All attendance URLs failed")
+            if attendance_response is None:
+                print("All attendance URLs failed - no data found")
                 await bot.send_message(chat_id, "❌ Failed to fetch attendance data from KITS. Please try again later.")
                 return
+            
+            response = attendance_response
             
             print(f"Attendance response status: {response.status_code}")
             print(f"Attendance response URL: {response.url}")
@@ -845,17 +841,9 @@ async def get_marks(bot, message):
                 headers = session_data.get('headers', {})
                 s.cookies.update(cookies)
                 
-                # Use proper KITS scraping method
-                dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
-                dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
-                
-                if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
-                    print("Dashboard access failed for marks")
-                    await bot.send_message(chat_id, "❌ Failed to access KITS dashboard for marks. Please try again.")
-                    return
-                
-                # Try multiple marks URLs
+                # Try multiple marks URLs directly (like original bot)
                 marks_urls = [
+                    "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx",
                     "https://kitsgunturerp.com/BeesERP/StudentLogin/Marks.aspx",
                     "https://kitsgunturerp.com/BeesERP/StudentMarks.aspx",
                     "https://kitsgunturerp.com/BeesERP/Marks.aspx"
@@ -863,14 +851,23 @@ async def get_marks(bot, message):
                 
                 response = None
                 for marks_url in marks_urls:
-                    print(f"Trying marks URL: {marks_url}")
                     try:
-                        response = s.get(marks_url, headers=headers, allow_redirects=True, timeout=30)
-                        if response.status_code == 200 and ("<table" in response.text or "marks" in response.text.lower()):
-                            print(f"Success with marks URL: {marks_url}")
+                        print(f"Trying marks URL: {marks_url}")
+                        resp = s.get(marks_url, headers=headers, allow_redirects=True, timeout=30)
+                        
+                        # Check if redirected to login
+                        if "Login.aspx" in getattr(resp, "url", "") or "txtUserName" in resp.text:
+                            print(f"Session expired for marks URL: {marks_url}")
+                            continue
+                        
+                        # Check if we got marks data
+                        if "<table" in resp.text or "marks" in resp.text.lower():
+                            print(f"Found marks data at: {marks_url}")
+                            response = resp
                             break
+                            
                     except Exception as e:
-                        print(f"Failed with marks URL {marks_url}: {e}")
+                        print(f"Error accessing marks URL {marks_url}: {e}")
                         continue
                 
                 if not response:
@@ -936,17 +933,9 @@ async def get_timetable(bot, message):
                 headers = session_data.get('headers', {})
                 s.cookies.update(cookies)
                 
-                # Use proper KITS scraping method
-                dashboard_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
-                dashboard_response = s.get(dashboard_url, headers=headers, allow_redirects=True, timeout=30)
-                
-                if dashboard_response.status_code != 200 or "Login.aspx" in dashboard_response.url:
-                    print("Dashboard access failed for timetable")
-                    await bot.send_message(chat_id, "❌ Failed to access KITS dashboard for timetable. Please try again.")
-                    return
-                
-                # Try multiple timetable URLs
+                # Try multiple timetable URLs directly (like original bot)
                 timetable_urls = [
+                    "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx",
                     "https://kitsgunturerp.com/BeesERP/StudentLogin/Timetable.aspx",
                     "https://kitsgunturerp.com/BeesERP/StudentTimetable.aspx",
                     "https://kitsgunturerp.com/BeesERP/Timetable.aspx"
@@ -954,14 +943,23 @@ async def get_timetable(bot, message):
                 
                 response = None
                 for timetable_url in timetable_urls:
-                    print(f"Trying timetable URL: {timetable_url}")
                     try:
-                        response = s.get(timetable_url, headers=headers, allow_redirects=True, timeout=30)
-                        if response.status_code == 200 and ("<table" in response.text or "timetable" in response.text.lower()):
-                            print(f"Success with timetable URL: {timetable_url}")
+                        print(f"Trying timetable URL: {timetable_url}")
+                        resp = s.get(timetable_url, headers=headers, allow_redirects=True, timeout=30)
+                        
+                        # Check if redirected to login
+                        if "Login.aspx" in getattr(resp, "url", "") or "txtUserName" in resp.text:
+                            print(f"Session expired for timetable URL: {timetable_url}")
+                            continue
+                        
+                        # Check if we got timetable data
+                        if "<table" in resp.text or "timetable" in resp.text.lower():
+                            print(f"Found timetable data at: {timetable_url}")
+                            response = resp
                             break
+                            
                     except Exception as e:
-                        print(f"Failed with timetable URL {timetable_url}: {e}")
+                        print(f"Error accessing timetable URL {timetable_url}: {e}")
                         continue
                 
                 if not response:
