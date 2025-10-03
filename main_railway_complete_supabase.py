@@ -264,47 +264,55 @@ async def validate_session(chat_id):
         
         print("🌐 Testing session with KITS request...")
         # Test session with a lightweight request (exact same as original)
-        with requests.Session() as s:
-            cookies = session_data['cookies']
-            headers = session_data.get('headers', {}) or {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            s.cookies.update(cookies)
-            
-            # Try a lightweight endpoint first
-            test_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
-            print(f"🔗 Testing URL: {test_url}")
-            response = s.get(test_url, headers=headers, timeout=15, allow_redirects=True)
-            
-            print(f"📡 Response status: {response.status_code}")
-            print(f"🔗 Final URL: {response.url}")
-            print(f"📄 Response length: {len(response.text)}")
-            
-            # Check if session is valid (exact same logic as original)
-            has_login_in_url = "Login.aspx" in getattr(response, "url", "")
-            has_login_in_text = "Login.aspx" in response.text
-            has_username_field = "txtUserName" in response.text
-            has_next_button = "btnNext" in response.text
-            
-            print(f"🔍 Validation checks:")
-            print(f"  - Login in URL: {has_login_in_url}")
-            print(f"  - Login in text: {has_login_in_text}")
-            print(f"  - Username field: {has_username_field}")
-            print(f"  - Next button: {has_next_button}")
-            
-            is_valid = not (has_login_in_url or has_login_in_text or has_username_field or has_next_button)
-            
-            print(f"✅ Session validation result: {is_valid}")
-            
-            # Cache the result
-            _session_validation_cache[cache_key] = (current_time, is_valid)
-            return is_valid
+        try:
+            with requests.Session() as s:
+                cookies = session_data['cookies']
+                headers = session_data.get('headers', {}) or {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+                s.cookies.update(cookies)
+                
+                # Try a lightweight endpoint first
+                test_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
+                print(f"🔗 Testing URL: {test_url}")
+                response = s.get(test_url, headers=headers, timeout=10, allow_redirects=True)
+                
+                print(f"📡 Response status: {response.status_code}")
+                print(f"🔗 Final URL: {response.url}")
+                print(f"📄 Response length: {len(response.text)}")
+                
+                # More lenient validation - only check for clear login redirects
+                has_login_redirect = "Login.aspx" in getattr(response, "url", "")
+                has_clear_login_page = (
+                    "txtUserName" in response.text and 
+                    "btnNext" in response.text and 
+                    "Student Login" in response.text
+                )
+                
+                print(f"🔍 Validation checks:")
+                print(f"  - Login redirect: {has_login_redirect}")
+                print(f"  - Clear login page: {has_clear_login_page}")
+                
+                # Session is valid if not clearly redirected to login
+                is_valid = not (has_login_redirect or has_clear_login_page)
+                
+                print(f"✅ Session validation result: {is_valid}")
+                
+                # Cache the result
+                _session_validation_cache[cache_key] = (current_time, is_valid)
+                return is_valid
+        except Exception as validation_error:
+            print(f"⚠️ Session validation request failed: {validation_error}")
+            # If validation request fails, assume session is still valid (don't expire on network issues)
+            print("🔄 Assuming session is valid due to network error")
+            _session_validation_cache[cache_key] = (current_time, True)
+            return True
             
     except Exception as e:
         print(f"❌ Session validation error for chat_id {chat_id}: {e}")
@@ -1271,11 +1279,17 @@ async def handle_callback_query(bot, callback_query):
 Need more help? Use /help for more commands."""
             await bot.send_message(chat_id, help_text, reply_markup=get_login_buttons())
         
-        await callback_query.answer()
+        try:
+            await callback_query.answer()
+        except Exception as callback_error:
+            print(f"Callback answer error (non-critical): {callback_error}")
         
     except Exception as e:
         logging.error("Error in callback query: %s", e)
-        await callback_query.answer("Error processing request")
+        try:
+            await callback_query.answer("Error processing request")
+        except Exception:
+            print("Could not answer callback query - this is usually not critical")
 
 async def initialize_complete_supabase():
     """Initialize complete Supabase connection with full KITS integration"""
