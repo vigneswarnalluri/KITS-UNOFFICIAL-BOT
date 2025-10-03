@@ -1,21 +1,76 @@
 from pyrogram import Client, filters,errors
 import asyncio,os
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
-from DATABASE.supabase_database import supabase_db
 from METHODS import labs_handler, operations,manager_operations,lab_operations,pdf_compressor
 from Buttons import buttons,manager_buttons
 from pyrogram.errors import FloodWait
-import time,logging
+import time,logging,glob,threading
 from load_env import load_environment
 
 # Load environment variables
 load_environment()
 
+def cleanup_old_files():
+    """Clean up old session files and temporary files"""
+    try:
+        # Remove old session files (but not the current one)
+        current_session = "KITS_BOT.session"
+        for session_file in glob.glob("KITS_BOT_*.session*"):
+            if os.path.exists(session_file) and session_file != current_session:
+                try:
+                    os.remove(session_file)
+                    print(f"🧹 Cleaned up old session file: {session_file}")
+                except PermissionError:
+                    print(f"⚠️ Could not remove {session_file} (file in use)")
+                except Exception as e:
+                    print(f"⚠️ Could not remove {session_file}: {e}")
+        
+        # Clean up log files if they get too large (>10MB)
+        log_file = "bot_errors.log"
+        if os.path.exists(log_file) and os.path.getsize(log_file) > 10 * 1024 * 1024:
+            try:
+                os.remove(log_file)
+                print(f"🧹 Cleaned up large log file: {log_file}")
+            except Exception as e:
+                print(f"⚠️ Could not clean log file: {e}")
+                
+    except Exception as e:
+        print(f"⚠️ Warning: Could not clean up old files: {e}")
+
+# Clean up old files on startup
+cleanup_old_files()
+
+def start_render_keep_alive():
+    """Start Render keep-alive service in background thread"""
+    def keep_alive_worker():
+        import requests
+        while True:
+            try:
+                # Ping external service to keep Render awake
+                response = requests.get("https://httpbin.org/get", timeout=10)
+                if response.status_code == 200:
+                    print("✅ Render keep-alive ping successful")
+                else:
+                    print(f"⚠️ Render ping failed: {response.status_code}")
+            except Exception as e:
+                print(f"❌ Render keep-alive error: {e}")
+            
+            # Wait 5 minutes before next ping
+            time.sleep(300)
+    
+    # Start keep-alive in background thread
+    keep_alive_thread = threading.Thread(target=keep_alive_worker, daemon=True)
+    keep_alive_thread.start()
+    print("🚀 Render keep-alive service started")
+
+# Start Render keep-alive service
+start_render_keep_alive()
+
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 API_ID = os.environ.get("API_ID")
 API_HASH = os.environ.get("API_HASH")
 import time
-session_name = f"KITS_BOT_{int(time.time())}"
+session_name = "KITS_BOT"
 bot = Client(
         session_name,
         bot_token = BOT_TOKEN,
@@ -287,43 +342,33 @@ async def handle_callback_query(bot, callback_query):
 
 async def main(bot):
     try:
-        # Try to initialize Supabase first (preferred for deployment)
+        # Initialize local databases
+        print("📋 Creating SQLite tables...")
+        await tdatabase.create_all_tdatabase_tables()
+        print("✅ Created tdatabase tables")
+        
+        await user_settings.create_user_settings_tables()
+        print("✅ Created user_settings tables")
+        
+        await managers_handler.create_required_bot_manager_tables()
+        print("✅ Created managers tables")
+        
+        # Set default indexes for user settings
         try:
-            await supabase_db.create_pool()
-            await supabase_db.create_all_tables()
-            print("SUCCESS: Supabase database initialized successfully")
-            print("Bot ready for deployment with cloud database!")
-        except Exception as supabase_error:
-            print(f"WARNING: Supabase not available, falling back to local databases: {supabase_error}")
-            logging.warning("Supabase connection failed, using local databases: %s", supabase_error)
-            
-            # Fallback to local databases with proper initialization
-            print("📋 Creating SQLite tables...")
-            await tdatabase.create_all_tdatabase_tables()
-            print("✅ Created tdatabase tables")
-            
-            await user_settings.create_user_settings_tables()
-            print("✅ Created user_settings tables")
-            
-            await managers_handler.create_required_bot_manager_tables()
-            print("✅ Created managers tables")
-            
-            # Set default indexes for user settings
-            try:
-                await user_settings.set_default_attendance_indexes()
-                print("✅ Set default attendance indexes")
-            except Exception as idx_error:
-                print(f"⚠️ Warning: Could not set default indexes: {idx_error}")
-            
-            print("✅ SUCCESS: Local SQLite databases initialized!")
-            
-            # Try to create PostgreSQL tables, but don't fail if PostgreSQL is not available
-            try:
-                await pgdatabase.create_all_pgdatabase_tables()
-                print("PostgreSQL connection successful")
-            except Exception as pg_error:
-                print(f"PostgreSQL not available, continuing with SQLite only: {pg_error}")
-                logging.warning("PostgreSQL connection failed, using SQLite only: %s", pg_error)
+            await user_settings.set_default_attendance_indexes()
+            print("✅ Set default attendance indexes")
+        except Exception as idx_error:
+            print(f"⚠️ Warning: Could not set default indexes: {idx_error}")
+        
+        print("✅ SUCCESS: Local SQLite databases initialized!")
+        
+        # Try to create PostgreSQL tables, but don't fail if PostgreSQL is not available
+        try:
+            await pgdatabase.create_all_pgdatabase_tables()
+            print("PostgreSQL connection successful")
+        except Exception as pg_error:
+            print(f"PostgreSQL not available, continuing with SQLite only: {pg_error}")
+            logging.warning("PostgreSQL connection failed, using SQLite only: %s", pg_error)
             
     except Exception as e:
         logging.error("Error in 'main' function: %s", e)

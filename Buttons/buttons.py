@@ -416,17 +416,7 @@ async def callback_function(bot,callback_query):
             # Saving the credentials to the database
             print(f"DEBUG: Attempting to save credentials for chat_id: {chat_id}, username: {username}")
             
-            # Try Supabase first (preferred for deployment)
-            supabase_success = False
-            try:
-                from DATABASE.supabase_rest import supabase_rest
-                result = supabase_rest.store_credentials(chat_id, username, password)
-                supabase_success = result is not None
-                print(f"DEBUG: Supabase save result: {supabase_success}")
-            except Exception as supabase_error:
-                print(f"DEBUG: Supabase error: {supabase_error}")
-            
-            # Try SQLite as fallback
+            # Save to SQLite database
             sqlite_success = False
             try:
                 sqlite_success = await tdatabase.store_credentials_in_database(chat_id,username,password)
@@ -434,12 +424,9 @@ async def callback_function(bot,callback_query):
             except Exception as sqlite_error:
                 print(f"DEBUG: SQLite error: {sqlite_error}")
             
-            # Success if at least one works
-            if supabase_success or sqlite_success:
-                if supabase_success:
-                    success_message = "**Your credentials have been saved to Supabase cloud database.**"
-                else:
-                    success_message = "**Your credentials have been saved locally.**"
+            # Success if SQLite works
+            if sqlite_success:
+                success_message = "**Your credentials have been saved locally.**"
                 
                 # Try to edit message, handle MESSAGE_NOT_MODIFIED error
                 try:

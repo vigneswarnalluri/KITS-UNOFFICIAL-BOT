@@ -1,1 +1,1 @@
-web: python main_railway_clean.py
+worker: python main.py

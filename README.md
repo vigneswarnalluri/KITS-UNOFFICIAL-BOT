@@ -158,11 +158,6 @@ python main.py
 2. Configure the environment variables in Heroku dashboard
 3. The bot will automatically start
 
-#### Using Railway
-
-1. Connect your GitHub repository to Railway
-2. Configure environment variables in Railway dashboard
-3. Deploy automatically
 
 #### Using Docker
 

@@ -1,0 +1,294 @@
+================================================================================
+                           IARE BOT V5.2 - PROJECT DETAILS
+================================================================================
+
+📅 CREATED: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+🔧 STATUS: Cleaned and Optimized
+🚀 VERSION: 5.2
+📝 MAINTAINER: IARE Development Team
+
+================================================================================
+                                PROJECT OVERVIEW
+================================================================================
+
+This is a Telegram bot designed for IARE (Institute of Aeronautical Engineering)
+students to manage their academic activities, lab submissions, and institutional
+services through a user-friendly Telegram interface.
+
+================================================================================
+                                CORE FEATURES
+================================================================================
+
+🎓 ACADEMIC MANAGEMENT:
+   • Student login and authentication
+   • Lab submission tracking
+   • Assignment management
+   • Grade tracking and CGPA calculation
+   • Attendance monitoring
+
+👥 USER MANAGEMENT:
+   • Student registration and profiles
+   • Admin panel for institutional staff
+   • Manager operations for faculty
+   • User statistics and analytics
+
+📊 REPORTING SYSTEM:
+   • Automated report generation
+   • User activity tracking
+   • Performance analytics
+   • Data export capabilities
+
+🔐 SECURITY FEATURES:
+   • Secure credential storage
+   • Session management
+   • User authentication
+   • Data encryption
+
+================================================================================
+                                TECHNICAL STACK
+================================================================================
+
+🐍 PROGRAMMING LANGUAGE: Python 3.9+
+📱 TELEGRAM FRAMEWORK: Pyrogram 2.0.106
+🗄️ DATABASE: SQLite (Primary) + PostgreSQL (Optional)
+🌐 HTTP REQUESTS: Requests + HTTPX
+📄 PDF PROCESSING: Custom PDF compressor
+🔧 WEB SCRAPING: BeautifulSoup4 + LXML
+📱 QR CODES: PyQRCode
+⚙️ ENVIRONMENT: Python-dotenv
+
+================================================================================
+                                PROJECT STRUCTURE
+================================================================================
+
+📁 ROOT DIRECTORY:
+   ├── main.py                    # Main bot application
+   ├── load_env.py               # Environment variable loader
+   ├── requirements.txt          # Python dependencies
+   ├── env.example              # Environment variables template
+   ├── .gitignore               # Git ignore rules
+   ├── PROJECT_DETAILS.txt      # This file
+   └── cleanup.py               # Cleanup utility
+
+📁 DATABASE/:
+   ├── tdatabase.py            # SQLite database operations
+   ├── pgdatabase.py           # PostgreSQL database operations
+   ├── user_settings.py        # User settings management
+   └── managers_handler.py     # Manager operations
+
+📁 METHODS/:
+   ├── operations.py           # Core bot operations
+   ├── labs_handler.py         # Lab management
+   ├── manager_operations.py  # Manager-specific operations
+   ├── lab_operations.py      # Lab operations
+   └── pdf_compressor.py      # PDF processing
+
+📁 Buttons/:
+   ├── buttons.py              # Main button handlers
+   └── manager_buttons.py      # Manager button handlers
+
+📁 CLEANUP TOOLS/:
+   ├── cleanup.py              # Python cleanup script
+   ├── cleanup.bat             # Windows batch cleanup
+   └── cleanup.ps1             # PowerShell cleanup script
+
+================================================================================
+                                DATABASE SCHEMA
+================================================================================
+
+🗄️ SQLITE DATABASES:
+   • credentials.db     - User login credentials
+   • labuploads.db      - Lab submission data
+   • managers.db        - Manager and admin data
+   • reports.db         - Report generation data
+   • total_users.db    - User statistics
+   • user_sessions.db  - Active user sessions
+   • user_settings.db  - User preferences and settings
+
+🗄️ POSTGRESQL (OPTIONAL):
+   • kits_bot_db        - Main PostgreSQL database
+   • User tables        - Extended user management
+   • Analytics tables   - Advanced reporting
+
+================================================================================
+                                BOT COMMANDS
+================================================================================
+
+👤 USER COMMANDS:
+   /start              - Start the bot and get welcome message
+   /login               - Login with institutional credentials
+   /help                - Get help and command list
+   /status              - Check bot status and user info
+
+👨‍💼 MANAGER COMMANDS:
+   /admin               - Access admin panel
+   /announce            - Send announcements to all users
+   /ban {username}      - Ban a user
+   /unban {username}    - Unban a user
+   /authorize            - Authorize and add admin
+   /rshow                - Show all pending requests
+   /rclear               - Clear all requests
+   /lusers               - Show the list of users
+   /tusers                - Show the total number of users
+   /reset                 - Reset the SQLite database
+
+================================================================================
+                                ADMIN FEATURES
+================================================================================
+
+🎛️ ADMIN PANEL BUTTONS:
+   • Requests           - View all pending requests
+   • Users              - View user statistics and lists
+   • Database (SQLite3) - Reset the SQLite3 database
+   • Database (PostgreSQL) - View and manage PostgreSQL database
+   • Maintainer Panel  - Access maintainer-specific features
+
+📊 REPORTING FEATURES:
+   • User activity reports
+   • Lab submission statistics
+   • Performance analytics
+   • Data export capabilities
+
+================================================================================
+                                DEPLOYMENT OPTIONS
+================================================================================
+
+🏠 LOCAL DEPLOYMENT:
+   1. Install Python 3.9+
+   2. Install dependencies: pip install -r requirements.txt
+   3. Configure environment variables in .env file
+   4. Run: python main.py
+
+🐳 DOCKER DEPLOYMENT:
+   FROM python:3.9-slim
+   WORKDIR /app
+   COPY requirements.txt .
+   RUN pip install -r requirements.txt
+   COPY . .
+   CMD ["python", "main.py"]
+
+☁️ CLOUD DEPLOYMENT:
+   • Heroku (with deploy button)
+   • Any cloud platform supporting Python
+   • VPS deployment
+   • Local server deployment
+
+================================================================================
+                                ENVIRONMENT SETUP
+================================================================================
+
+🔧 REQUIRED ENVIRONMENT VARIABLES:
+   BOT_TOKEN=your_bot_token_here
+   API_ID=your_api_id_here
+   API_HASH=your_api_hash_here
+   DEVELOPER_CHAT_ID=your_developer_chat_id
+   MAINTAINER_CHAT_ID=your_maintainer_chat_id
+
+🔧 OPTIONAL ENVIRONMENT VARIABLES:
+   POSTGRES_USER_ID=postgres
+   POSTGRES_PASSWORD=your_postgres_password
+   POSTGRES_DATABASE=kits_bot_db
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+
+================================================================================
+                                SECURITY FEATURES
+================================================================================
+
+🔐 DATA PROTECTION:
+   • All sensitive data stored securely
+   • Session files automatically managed
+   • User credentials encrypted
+   • Database connections secured
+
+🛡️ ACCESS CONTROL:
+   • Role-based permissions
+   • Admin authentication
+   • User session management
+   • Secure API endpoints
+
+================================================================================
+                                CLEANUP & MAINTENANCE
+================================================================================
+
+🧹 AUTOMATIC CLEANUP:
+   • Session files cleaned on startup
+   • Log files rotated when large
+   • Temporary files removed automatically
+   • Database optimization
+
+🛠️ MANUAL CLEANUP TOOLS:
+   • python cleanup.py        - Python cleanup script
+   • cleanup.bat              - Windows batch cleanup
+   • .\cleanup.ps1            - PowerShell cleanup script
+
+📁 FILES IGNORED BY GIT:
+   • *.session files
+   • *.db files
+   • *.log files
+   • __pycache__/ directories
+   • .env files
+
+================================================================================
+                                RECENT OPTIMIZATIONS
+================================================================================
+
+✅ REMOVED DEPENDENCIES:
+   • Railway deployment configurations
+   • Supabase cloud database dependencies
+   • Unnecessary cloud service integrations
+
+✅ PERFORMANCE IMPROVEMENTS:
+   • Single session file management
+   • Automatic cleanup on startup
+   • Optimized database operations
+   • Reduced file accumulation
+
+✅ CODE CLEANUP:
+   • Removed unused imports
+   • Simplified database initialization
+   • Cleaned up configuration files
+   • Added comprehensive .gitignore
+
+================================================================================
+                                SUPPORT & CONTRIBUTION
+================================================================================
+
+📞 SUPPORT:
+   • Check CONTRIBUTING.md for contribution guidelines
+   • Report issues through GitHub issues
+   • Contact maintainers for urgent issues
+
+🤝 CONTRIBUTING:
+   • Fork the repository
+   • Create feature branches
+   • Submit pull requests
+   • Follow coding standards
+
+📄 LICENSE:
+   • Check LICENSE file for usage terms
+   • Respect intellectual property rights
+   • Follow institutional guidelines
+
+================================================================================
+                                PROJECT STATUS
+================================================================================
+
+🟢 CURRENT STATUS: ACTIVE & MAINTAINED
+🔄 LAST UPDATED: $(Get-Date -Format "yyyy-MM-dd")
+🧹 CLEANUP STATUS: COMPLETED
+🚀 DEPLOYMENT READY: YES
+📊 DATABASE STATUS: OPTIMIZED
+🔧 DEPENDENCIES: UPDATED
+
+================================================================================
+                                END OF DOCUMENT
+================================================================================
+
+This document provides a comprehensive overview of the IARE Bot V5.2 project.
+For technical support or questions, please refer to the project documentation
+or contact the development team.
+
+Generated by: IARE Bot Project Manager
+Last Updated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+Version: 1.0
