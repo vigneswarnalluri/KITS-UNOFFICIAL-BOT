@@ -58,8 +58,24 @@ async def store_user_session(chat_id, session_data, username):
             "session_data": json.dumps(session_data),
             "username": username
         }
-        result = supabase_client._make_request("POST", "user_sessions", data)
-        print(f"Session storage result: {result}")
+        
+        # Try to update existing session first, then insert if not exists
+        try:
+            # Check if session exists
+            existing = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
+            if existing and len(existing) > 0:
+                # Update existing session
+                result = supabase_client._make_request("PATCH", f"user_sessions?chat_id=eq.{chat_id}", data)
+                print(f"Session updated: {result}")
+            else:
+                # Insert new session
+                result = supabase_client._make_request("POST", "user_sessions", data)
+                print(f"Session inserted: {result}")
+        except Exception as e:
+            print(f"Upsert failed, trying direct insert: {e}")
+            result = supabase_client._make_request("POST", "user_sessions", data)
+            print(f"Session storage result: {result}")
+        
         return result is not None
     except Exception as e:
         print(f"Error storing session: {e}")
@@ -77,7 +93,15 @@ async def load_user_session(chat_id):
         if result and len(result) > 0:
             session_data = result[0].get("session_data")
             if session_data:
-                return json.loads(session_data)
+                try:
+                    # Try to parse JSON
+                    parsed_data = json.loads(session_data)
+                    print(f"Session data parsed successfully: {type(parsed_data)}")
+                    return parsed_data
+                except json.JSONDecodeError as json_error:
+                    print(f"JSON parsing error: {json_error}")
+                    print(f"Raw session data: {session_data[:100]}...")
+                    return None
         return None
     except Exception as e:
         print(f"Error loading session: {e}")
@@ -86,13 +110,25 @@ async def load_user_session(chat_id):
 async def store_credentials(chat_id, username, password):
     """Store credentials in Supabase"""
     try:
+        if not supabase_client:
+            print("❌ Supabase client not initialized")
+            return False
+            
         data = {
             "chat_id": chat_id,
             "username": username,
             "password": password
         }
-        result = supabase_client._make_request("POST", "credentials", data)
-        return result is not None
+        # Try user_credentials table first, then credentials
+        try:
+            result = supabase_client._make_request("POST", "user_credentials", data)
+            print(f"Credentials stored in user_credentials: {result}")
+            return result is not None
+        except Exception as e:
+            print(f"user_credentials failed, trying credentials: {e}")
+            result = supabase_client._make_request("POST", "credentials", data)
+            print(f"Credentials stored in credentials: {result}")
+            return result is not None
     except Exception as e:
         print(f"Error storing credentials: {e}")
         return False
@@ -100,9 +136,22 @@ async def store_credentials(chat_id, username, password):
 async def load_credentials(chat_id):
     """Load credentials from Supabase"""
     try:
-        result = supabase_client._make_request("GET", f"credentials?chat_id=eq.{chat_id}&limit=1")
-        if result and len(result) > 0:
-            return result[0].get("username"), result[0].get("password")
+        if not supabase_client:
+            print("❌ Supabase client not initialized")
+            return None, None
+            
+        # Try user_credentials table first, then credentials
+        try:
+            result = supabase_client._make_request("GET", f"user_credentials?chat_id=eq.{chat_id}&limit=1")
+            print(f"Credentials loaded from user_credentials: {result}")
+            if result and len(result) > 0:
+                return result[0].get("username"), result[0].get("password")
+        except Exception as e:
+            print(f"user_credentials failed, trying credentials: {e}")
+            result = supabase_client._make_request("GET", f"credentials?chat_id=eq.{chat_id}&limit=1")
+            print(f"Credentials loaded from credentials: {result}")
+            if result and len(result) > 0:
+                return result[0].get("username"), result[0].get("password")
         return None, None
     except Exception as e:
         print(f"Error loading credentials: {e}")
