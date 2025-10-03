@@ -38,13 +38,13 @@ This guide will help you deploy your Telegram bot to run 24/7 for free using var
 ### Step 2: Deploy to Render
 1. Go to [render.com](https://render.com)
 2. Sign up with GitHub
-3. Click "New +" → "Web Service"
+3. Click "New +" → **"Background Worker"** (NOT Web Service!)
 4. Connect your GitHub repository
 5. Configure settings:
    - **Name**: `iare-bot`
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python main.py`
+   - **Start Command**: `python main_render.py`
 6. Add environment variables:
    ```
    BOT_TOKEN=your_bot_token_here
