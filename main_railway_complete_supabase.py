@@ -175,56 +175,122 @@ async def validate_session(chat_id):
         return False
 
 async def perform_login(username, password):
-    """Perform actual KITS login with scraping"""
+    """Perform actual KITS login with two-step ASP.NET process"""
     try:
+        # Set up the necessary headers
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': 'https://kitsgunturerp.com',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+        }
+
         with requests.Session() as s:
-            # Set headers
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            s.headers.update(headers)
-            
-            # Get login page
-            login_url = "https://kitsgunturerp.com/BeesERP/Login.aspx"
-            response = s.get(login_url, headers=headers, timeout=15)
-            
-            if response.status_code != 200:
-                return None
-            
-            # Parse login form
-            soup = BeautifulSoup(response.text, 'html.parser')
-            form = soup.find('form')
-            if not form:
-                return None
-            
-            # Extract form data
-            form_data = {}
-            for input_tag in form.find_all('input'):
-                if input_tag.get('name'):
-                    form_data[input_tag.get('name')] = input_tag.get('value', '')
-            
-            # Add credentials
-            form_data['txtUserName'] = username
-            form_data['txtPassword'] = password
-            
-            # Submit login
-            login_response = s.post(login_url, data=form_data, headers=headers, timeout=15)
-            
-            # Check if login successful
-            if "StudentLogin/MainStud.aspx" in login_response.url or "MainStud.aspx" in login_response.text:
-                # Extract session data
-                session_data = {
-                    'cookies': dict(s.cookies),
-                    'headers': headers,
-                    'login_time': time.time()
+            try:
+                # Step 1: Get the login page to extract hidden form fields
+                login_url = "https://kitsgunturerp.com/BeesERP/Login.aspx"
+                response = s.get(login_url, headers=headers, timeout=30)
+                
+                # Check if we got a successful response
+                if response.status_code != 200:
+                    print(f"Failed to load login page. Status code: {response.status_code}")
+                    return None
+                
+                # Parse the page to extract hidden fields
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract hidden fields that need to be submitted with the login
+                viewstate = soup.find('input', {'name': '__VIEWSTATE'})
+                viewstategenerator = soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
+                eventvalidation = soup.find('input', {'name': '__EVENTVALIDATION'})
+                
+                # Debug: Print extracted fields
+                print(f"Step 1 - VIEWSTATE: {viewstate.get('value', '')[:50] if viewstate else 'None'}")
+                print(f"Step 1 - VIEWSTATEGENERATOR: {viewstategenerator.get('value', '') if viewstategenerator else 'None'}")
+                print(f"Step 1 - EVENTVALIDATION: {eventvalidation.get('value', '')[:50] if eventvalidation else 'None'}")
+                
+                # Prepare the username data
+                data = {
+                    '__VIEWSTATE': viewstate.get('value', '') if viewstate else '',
+                    '__VIEWSTATEGENERATOR': viewstategenerator.get('value', '') if viewstategenerator else '',
+                    '__EVENTVALIDATION': eventvalidation.get('value', '') if eventvalidation else '',
+                    'txtUserName': username,
+                    'btnNext': 'Next'
                 }
-                return session_data
-            else:
+                
+                # Submit the first step (username)
+                response = s.post(login_url, headers=headers, data=data, timeout=15)
+                
+                # Check if the first step was successful
+                if response.status_code != 200:
+                    print(f"Failed to submit username. Status code: {response.status_code}")
+                    return None
+                
+                # Debug: Check response content
+                print(f"Username submission response length: {len(response.text)}")
+                
+                # Step 2: Parse the response to get the new hidden fields for password submission
+                soup = BeautifulSoup(response.text, 'html.parser')
+                viewstate = soup.find('input', {'name': '__VIEWSTATE'})
+                viewstategenerator = soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
+                eventvalidation = soup.find('input', {'name': '__EVENTVALIDATION'})
+                
+                # Debug: Print extracted fields for password step
+                print(f"Step 2 - VIEWSTATE: {viewstate.get('value', '')[:50] if viewstate else 'None'}")
+                print(f"Step 2 - VIEWSTATEGENERATOR: {viewstategenerator.get('value', '') if viewstategenerator else 'None'}")
+                print(f"Step 2 - EVENTVALIDATION: {eventvalidation.get('value', '')[:50] if eventvalidation else 'None'}")
+                
+                # Check if we have the necessary fields for password submission
+                if not viewstate or not eventvalidation:
+                    print("Missing required form fields for password submission")
+                    return None
+                
+                # Prepare the password data
+                data = {
+                    '__VIEWSTATE': viewstate.get('value', '') if viewstate else '',
+                    '__VIEWSTATEGENERATOR': viewstategenerator.get('value', '') if viewstategenerator else '',
+                    '__EVENTVALIDATION': eventvalidation.get('value', '') if eventvalidation else '',
+                    'txtPassword': password,
+                    'btnSubmit': 'Login'
+                }
+                
+                # Submit the login form with password
+                login_response = s.post(login_url, headers=headers, data=data, timeout=15)
+                
+                # Check if login was successful
+                if login_response.status_code == 200:
+                    # Check if we're redirected to the main student page
+                    if ("StudentLogin/MainStud.aspx" in login_response.url or 
+                        "MainStud.aspx" in login_response.text or
+                        "Welcome" in login_response.text):
+                        
+                        # Extract session data
+                        session_data = {
+                            'cookies': dict(s.cookies),
+                            'headers': headers,
+                            'login_time': time.time()
+                        }
+                        print("Login successful!")
+                        return session_data
+                    else:
+                        print("Login failed - not redirected to main page")
+                        return None
+                else:
+                    print(f"Login failed with status code: {login_response.status_code}")
+                    return None
+                    
+            except Exception as e:
+                print(f"Login error: {e}")
                 return None
                 
     except Exception as e:
@@ -419,18 +485,25 @@ async def get_attendance(bot, message):
                 # Extract attendance data
                 attendance_text = "📊 **Attendance Report**\n\n"
                 
-                # Look for attendance table
-                table = soup.find('table', {'id': 'gvAttendance'})
+                # Look for attendance table (try multiple possible IDs)
+                table = (soup.find('table', {'id': 'gvAttendance'}) or 
+                        soup.find('table', {'id': 'GridView1'}) or
+                        soup.find('table', {'class': 'table'}) or
+                        soup.find('table'))
+                
                 if table:
                     rows = table.find_all('tr')
                     for row in rows[1:]:  # Skip header
                         cells = row.find_all(['td', 'th'])
-                        if len(cells) >= 4:
+                        if len(cells) >= 3:
                             subject = cells[0].get_text(strip=True)
                             attended = cells[1].get_text(strip=True)
                             total = cells[2].get_text(strip=True)
-                            percentage = cells[3].get_text(strip=True)
-                            attendance_text += f"**{subject}**: {attended}/{total} ({percentage})\n"
+                            if len(cells) >= 4:
+                                percentage = cells[3].get_text(strip=True)
+                                attendance_text += f"**{subject}**: {attended}/{total} ({percentage})\n"
+                            else:
+                                attendance_text += f"**{subject}**: {attended}/{total}\n"
                 else:
                     attendance_text += "No attendance data found"
                 
