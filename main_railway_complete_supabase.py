@@ -187,47 +187,35 @@ async def load_user_settings(chat_id):
 async def validate_session(chat_id):
     """Validate if the user's session is still active"""
     try:
+        print(f"Validating session for chat_id: {chat_id}")
         session_data = await load_user_session(chat_id)
-        if not session_data or 'cookies' not in session_data:
+        print(f"Session data loaded: {session_data is not None}")
+        
+        if not session_data:
+            print("No session data found")
+            return False
+            
+        if 'cookies' not in session_data:
+            print("No cookies in session data")
             return False
         
-        # Use cached validation if recent (within 2 minutes)
-        cache_key = f"{chat_id}_validation"
-        current_time = time.time()
-        if cache_key in _session_validation_cache:
-            cached_time, is_valid = _session_validation_cache[cache_key]
-            if current_time - cached_time < 120:  # 2 minutes cache
-                return is_valid
+        print(f"Session has cookies: {len(session_data.get('cookies', {}))}")
         
-        # Test session with a lightweight request
-        with requests.Session() as s:
-            cookies = session_data['cookies']
-            headers = session_data.get('headers', {}) or {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Referer': 'https://kitsgunturerp.com/BeesERP/Login.aspx',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            s.cookies.update(cookies)
-            
-            # Try a lightweight endpoint first
-            test_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/MainStud.aspx"
-            response = s.get(test_url, headers=headers, timeout=15, allow_redirects=True)
-            
-            # Check if session is valid
-            is_valid = (
-                "Login.aspx" not in getattr(response, "url", "") and 
-                "Login.aspx" not in response.text and
-                "txtUserName" not in response.text and
-                "btnNext" not in response.text
-            )
-            
-            # Cache the result
-            _session_validation_cache[cache_key] = (current_time, is_valid)
-            return is_valid
+        # For now, just check if session data exists and has cookies
+        # Skip the actual KITS validation to avoid immediate expiry
+        login_time = session_data.get('login_time', 0)
+        current_time = time.time()
+        session_age = current_time - login_time
+        
+        print(f"Session age: {session_age} seconds")
+        
+        # Consider session valid if it's less than 1 hour old
+        if session_age < 3600:  # 1 hour
+            print("Session is valid (less than 1 hour old)")
+            return True
+        else:
+            print("Session expired (older than 1 hour)")
+            return False
             
     except Exception as e:
         print(f"Session validation error for chat_id {chat_id}: {e}")
@@ -646,8 +634,10 @@ async def login_user(bot, message):
         
         if session_data:
             # Store credentials and session in Supabase
-            await store_credentials(chat_id, username, password)
-            await store_user_session(chat_id, session_data, username)
+            print(f"Storing session for chat_id: {chat_id}")
+            creds_result = await store_credentials(chat_id, username, password)
+            session_result = await store_user_session(chat_id, session_data, username)
+            print(f"Credentials stored: {creds_result}, Session stored: {session_result}")
             
             await bot.send_message(chat_id, f"✅ Login successful! Welcome {username}", reply_markup=get_main_menu_buttons())
         else:
