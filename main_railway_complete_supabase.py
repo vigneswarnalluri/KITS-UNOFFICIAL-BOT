@@ -643,12 +643,44 @@ async def get_attendance(bot, message):
             headers = session_data.get('headers', {})
             s.cookies.update(cookies)
             
-            # Get attendance page
-            attendance_url = "https://kitsgunturerp.com/BeesERP/StudentLogin/Attendance.aspx"
-            response = s.get(attendance_url, headers=headers, timeout=15)
+            print(f"Session cookies: {cookies}")
+            print(f"Session headers: {headers}")
+            
+            # Try multiple attendance URLs
+            attendance_urls = [
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/Attendance.aspx",
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/AttendanceReport.aspx",
+                "https://kitsgunturerp.com/BeesERP/StudentLogin/StudentAttendance.aspx",
+                "https://kitsgunturerp.com/BeesERP/Attendance.aspx"
+            ]
+            
+            response = None
+            for attendance_url in attendance_urls:
+                print(f"Trying attendance URL: {attendance_url}")
+                try:
+                    response = s.get(attendance_url, headers=headers, timeout=15)
+                    if response.status_code == 200 and "attendance" in response.text.lower():
+                        print(f"Success with URL: {attendance_url}")
+                        break
+                except Exception as e:
+                    print(f"Failed with URL {attendance_url}: {e}")
+                    continue
+            
+            if not response:
+                await bot.send_message(chat_id, "❌ Could not access attendance page. Please try again later.")
+                return
+            
+            print(f"Attendance response status: {response.status_code}")
+            print(f"Attendance response URL: {response.url}")
+            print(f"Attendance response length: {len(response.text)}")
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Check if we're still on login page (session expired)
+                if "Login.aspx" in response.url or "login" in response.text.lower():
+                    await bot.send_message(chat_id, "❌ Session expired. Please login again.", reply_markup=get_main_menu_buttons())
+                    return
                 
                 # Extract attendance data
                 attendance_text = "📊 **Attendance Report**\n\n"
@@ -656,11 +688,16 @@ async def get_attendance(bot, message):
                 # Look for attendance table (try multiple possible IDs)
                 table = (soup.find('table', {'id': 'gvAttendance'}) or 
                         soup.find('table', {'id': 'GridView1'}) or
+                        soup.find('table', {'id': 'gvAttendanceReport'}) or
                         soup.find('table', {'class': 'table'}) or
                         soup.find('table'))
                 
+                print(f"Found table: {table is not None}")
                 if table:
+                    print(f"Table ID: {table.get('id', 'No ID')}")
                     rows = table.find_all('tr')
+                    print(f"Table rows: {len(rows)}")
+                    
                     for row in rows[1:]:  # Skip header
                         cells = row.find_all(['td', 'th'])
                         if len(cells) >= 3:
@@ -673,11 +710,18 @@ async def get_attendance(bot, message):
                             else:
                                 attendance_text += f"**{subject}**: {attended}/{total}\n"
                 else:
+                    # Try to find any table with attendance-like content
+                    all_tables = soup.find_all('table')
+                    print(f"Total tables found: {len(all_tables)}")
+                    for i, t in enumerate(all_tables):
+                        print(f"Table {i}: ID={t.get('id')}, Class={t.get('class')}")
+                    
                     attendance_text += "No attendance data found"
                 
                 await bot.send_message(chat_id, attendance_text, reply_markup=get_main_menu_buttons())
             else:
-                await bot.send_message(chat_id, "❌ Failed to fetch attendance data. Please try again.")
+                print(f"Attendance fetch failed with status: {response.status_code}")
+                await bot.send_message(chat_id, f"❌ Failed to fetch attendance data (Status: {response.status_code}). Please try again.")
             
     except Exception as e:
         print(f"Error in attendance: {e}")
