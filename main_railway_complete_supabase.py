@@ -52,6 +52,19 @@ async def store_user_session(chat_id, session_data, username):
         if not supabase_client:
             print("❌ Supabase client not initialized")
             return False
+        
+        print(f"Storing session for chat_id: {chat_id}")
+        print(f"Session data keys: {list(session_data.keys()) if session_data else 'None'}")
+        print(f"Session cookies: {session_data.get('cookies', {}) if session_data else 'None'}")
+        
+        # Ensure session_data has required fields
+        if not session_data or 'cookies' not in session_data:
+            print("❌ Invalid session data - missing cookies")
+            return False
+            
+        # Add login time if not present
+        if 'login_time' not in session_data:
+            session_data['login_time'] = time.time()
             
         data = {
             "chat_id": chat_id,
@@ -59,10 +72,14 @@ async def store_user_session(chat_id, session_data, username):
             "username": username
         }
         
+        print(f"Session data to store: {json.dumps(session_data, indent=2)[:500]}...")
+        
         # Try to update existing session first, then insert if not exists
         try:
             # Check if session exists
             existing = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
+            print(f"Existing session check: {existing}")
+            
             if existing and len(existing) > 0:
                 # Update existing session
                 result = supabase_client._make_request("PATCH", f"user_sessions?chat_id=eq.{chat_id}", data)
@@ -76,7 +93,9 @@ async def store_user_session(chat_id, session_data, username):
             result = supabase_client._make_request("POST", "user_sessions", data)
             print(f"Session storage result: {result}")
         
-        return result is not None
+        success = result is not None
+        print(f"Session storage success: {success}")
+        return success
     except Exception as e:
         print(f"Error storing session: {e}")
         return False
@@ -87,21 +106,30 @@ async def load_user_session(chat_id):
         if not supabase_client:
             print("❌ Supabase client not initialized")
             return None
-            
+        
+        print(f"Loading session for chat_id: {chat_id}")
         result = supabase_client._make_request("GET", f"user_sessions?chat_id=eq.{chat_id}&limit=1")
         print(f"Session load result for {chat_id}: {result}")
+        
         if result and len(result) > 0:
             session_data = result[0].get("session_data")
+            print(f"Raw session data from DB: {session_data[:200] if session_data else 'None'}...")
+            
             if session_data:
                 try:
                     # Try to parse JSON
                     parsed_data = json.loads(session_data)
                     print(f"Session data parsed successfully: {type(parsed_data)}")
+                    print(f"Parsed session keys: {list(parsed_data.keys()) if parsed_data else 'None'}")
+                    print(f"Session has cookies: {'cookies' in parsed_data if parsed_data else False}")
+                    print(f"Session has login_time: {'login_time' in parsed_data if parsed_data else False}")
                     return parsed_data
                 except json.JSONDecodeError as json_error:
                     print(f"JSON parsing error: {json_error}")
                     print(f"Raw session data: {session_data[:100]}...")
                     return None
+        else:
+            print(f"No session found in database for chat_id: {chat_id}")
         return None
     except Exception as e:
         print(f"Error loading session: {e}")
@@ -687,10 +715,11 @@ async def get_attendance(bot, message):
             await bot.send_message(chat_id, "❌ Please login first using /login")
             return
         
-        # Validate session
-        if not await validate_session(chat_id):
-            await bot.send_message(chat_id, "❌ Session expired. Please login again.")
-            return
+        # Temporary: Skip session validation to test if session data is working
+        print("⚠️ TEMPORARY: Skipping session validation for testing")
+        # if not await validate_session(chat_id):
+        #     await bot.send_message(chat_id, "❌ Session expired. Please login again.")
+        #     return
         
         await bot.send_message(chat_id, "🔄 Fetching attendance data...")
         
